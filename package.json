@@ -1,0 +1,23 @@
+{
+  "name": "ioredisgraph",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "camelcase": "^6.2.0",
+    "ioredis": "^4.27.11",
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "@types/ioredis": "^4.27.6",
+    "@types/lodash": "^4.14.175",
+    "typescript": "^4.4.3"
+  }
+}
