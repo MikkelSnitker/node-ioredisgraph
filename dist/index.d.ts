@@ -9,11 +9,11 @@ export declare class RedisGraph extends Redis {
     explain(command: string): any;
 }
 interface ClusterOptions extends Omit<Redis.ClusterOptions, "scaleReads"> {
-    scaleReads: string | Function;
+    scaleReads?: "master" | "slave" | "all" | Function;
 }
 export declare class RedisGraphCluster extends Redis.Cluster {
     private graphName;
-    constructor(graphName: string, nodes: Redis.ClusterNode[], options?: ClusterOptions);
+    constructor(graphName: string, nodes: Redis.ClusterNode[], { scaleReads, ...options }: ClusterOptions);
     sendCommand(...args: any[]): void;
     query(command: string, params: any, options?: {
         graphName?: string;

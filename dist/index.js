@@ -119,16 +119,25 @@ function replyTransformer(result) {
     return parsedResults.filter(x => x != null);
 }
 class RedisGraphCluster extends ioredis_1.default.Cluster {
-    constructor(graphName, nodes, options) {
+    constructor(graphName, nodes, { scaleReads = "master", ...options }) {
         super(nodes, {
             scaleReads(nodes, command) {
-                if (command.isReadOnly) {
-                    return nodes.slice(1);
+                if (typeof scaleReads === "function") {
+                    return scaleReads(nodes, command);
                 }
-                return nodes[0];
+                if (command.isReadOnly) {
+                    if (scaleReads === "all") {
+                        return nodes;
+                    }
+                    return nodes.filter(x => x.options.readOnly);
+                }
+                else {
+                    return nodes.filter(x => !x.options.readOnly);
+                }
             }, ...options
         });
         this.graphName = graphName;
+        this.nodes();
         ioredis_1.default.Command.setArgumentTransformer('GRAPH.QUERY', argumentTransformer);
         ioredis_1.default.Command.setReplyTransformer('GRAPH.QUERY', replyTransformer);
         ioredis_1.default.Command.setArgumentTransformer('GRAPH.RO_QUERY', argumentTransformer);

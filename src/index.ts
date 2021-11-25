@@ -100,7 +100,7 @@ function serialize (obj:unknown):string | null {
 }
 
 interface ClusterOptions extends Omit<Redis.ClusterOptions, "scaleReads"> {
-  scaleReads: string | Function
+  scaleReads?: "master" | "slave" | "all" | Function
 }
 
 function argumentTransformer(args:any[]){
@@ -130,15 +130,25 @@ function replyTransformer(result:any){
 }
 
 export class RedisGraphCluster extends Redis.Cluster {
-  constructor (private graphName:string, nodes: Redis.ClusterNode[], options?:ClusterOptions) {
+  constructor (private graphName:string, nodes: Redis.ClusterNode[], {scaleReads = "master", ...options}:ClusterOptions) {
     super(nodes, {
-      scaleReads(nodes:any[], command:any){
+      scaleReads(nodes: Redis.Redis[], command:any){
+        if(typeof scaleReads === "function"){
+          return scaleReads(nodes, command);
+        }
+        
         if(command.isReadOnly){
-          return nodes.slice(1);
-        } 
-        return nodes[0]
+          if(scaleReads === "all"){
+            return nodes;
+          }
+
+          return nodes.filter(x=>x.options.readOnly);
+        } else {
+          return nodes.filter(x=>!x.options.readOnly);
+        }
+        
      }, ...options} as any)
-   
+     this.nodes()
     Redis.Command.setArgumentTransformer('GRAPH.QUERY',argumentTransformer);
     Redis.Command.setReplyTransformer('GRAPH.QUERY', replyTransformer);
 
