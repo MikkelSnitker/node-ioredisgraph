@@ -1,7 +1,9 @@
 import Redis, { Command } from 'ioredis'
-import camelCase from 'camelcase'
-import _ from 'lodash'
-
+import { Node } from './Node';
+import { Edge } from './Edge'
+import { Path } from './Path';
+import { Graph } from './Graph'
+/*
 export class RedisGraph extends Redis {
     private graphName!:string;
 
@@ -36,54 +38,11 @@ export class RedisGraph extends Redis {
       return _this.call('GRAPH.EXPLAIN', this.graphName, `${command}`)
     }
 }
-
-function parseMetaInformation (array:string[]) {
-  const meta: {[key:string]: string} = {}
-  for (const prop of array) {
-    let [name, value] = prop.split(': ')
-    if (value) {
-      value = value.trim()
-      name = camelCase(name)
-      meta[name] = value
-    }
-  }
-  return meta
-}
+*/
 
 const nodeId = Symbol('nodeId')
 
-function parseResult (columnHeaders:any[], singleResult:any) {
-  const columns = columnHeaders.map((columnHeader, index) => {
-    const name = columnHeader
-    let value = singleResult[index]
-
-    if (Array.isArray(value)) {
-      value = _.fromPairs(value)
-    }
-    if (value == null) {
-      return null
-    }
-
-    const { id } = value
-    delete value.id
-    Object.assign(value, { [nodeId]: id })
-
-    if (value.properties) {
-      _.defaults(value, _.fromPairs(value.properties))
-      delete value.properties
-    }
-
-    return [name, value]
-  }).filter(x => x !== null)
-
-  if (columns.length === 0) {
-    return null
-  }
-
-  return _.fromPairs(columns as [])
-}
-
-function serialize (obj:unknown):string | null {
+function serialize(obj: unknown): string | null {
   if (obj === null) {
     return null
   }
@@ -100,80 +59,265 @@ function serialize (obj:unknown):string | null {
 }
 
 interface ClusterOptions extends Omit<Redis.ClusterOptions, "scaleReads"> {
-  scaleReads?: "master" | "slave" | "all" | Function
+  scaleReads?: "master" | "slave" | "all" | Function
 }
 
-function argumentTransformer(args:any[]){
+enum ColumnType {
+  COLUMN_UNKNOWN = 0,
+  COLUMN_SCALAR = 1,
+  COLUMN_NODE = 2,      // Unused, retained for client compatibility.
+  COLUMN_RELATION = 3,  // Unused, retained for client compatibility.
+};
+
+enum ValueType {
+  VALUE_UNKNOWN = 0,
+  VALUE_NULL = 1,
+  VALUE_STRING = 2,
+  VALUE_INTEGER = 3,
+  VALUE_BOOLEAN = 4,
+  VALUE_DOUBLE = 5,
+  VALUE_ARRAY = 6,
+  VALUE_EDGE = 7,
+  VALUE_NODE = 8,
+  VALUE_PATH = 9,
+  VALUE_MAP = 10,
+  VALUE_POINT = 11
+};
+
+function argumentTransformer(this: RedisGraphCluster, args: any[]) {
   const [graphName, cypher, params] = args
-    
+
   const paramStr = Object.keys(params ?? {}).reduce((result, key) => result += `${key} = ${serialize(params[key as keyof typeof params])} `, '')
 
-  return [graphName, `CYPHER ${paramStr}; ${cypher}`]
+  return [graphName, `CYPHER ${paramStr}; ${cypher}`, '--compact']
 }
 
-function replyTransformer(result:any){
-  const metaInformation = parseMetaInformation(result.pop())
+type Value<T = unknown> = [ValueType, T]
+type QueryStatistics = string[];
+type HeaderRow = Array<[ColumnType, string]>;
+type ResultRow = Array<Value[]>
 
-      let parsedResults: Array<unknown> & {meta: unknown} = Object.assign([], { meta: null })
-      parsedResults.meta = metaInformation
+type RedisGraphResponse = [QueryStatistics] | [HeaderRow, ResultRow, QueryStatistics];
 
-      if (result.length > 1) { // if there are results to parse
-        const columnHeaders = result[0]
-        const resultSet = result[1]
+function parseStatistics(stats: QueryStatistics) {
+  return stats.map(x => x.split(":")).reduce((result, [prop, val]) => Object.assign(result, { [prop.toUpperCase()]: val }));
+}
 
-        parsedResults = resultSet.map((result:any) => {
-          return parseResult(columnHeaders, result)
-        })
+export const STATS = Symbol("stats");
+
+async function parseValue(this: Graph, type: ValueType, value: unknown): Promise<unknown> {
+  switch (type) {
+    case ValueType.VALUE_UNKNOWN:
+    case ValueType.VALUE_NULL:
+    case ValueType.VALUE_STRING:
+    case ValueType.VALUE_INTEGER:
+      return value;
+      break;
+    case ValueType.VALUE_BOOLEAN:
+      return value === "true"
+      break;
+    case ValueType.VALUE_DOUBLE:
+      return parseFloat(value as string)
+      break;
+    case ValueType.VALUE_ARRAY:
+      return Promise.all((value as Array<[ValueType, unknown]>).map(([type, value])=>parseValue.call(this, type, value)));
+      break;
+    case ValueType.VALUE_EDGE:{
+      const [id, type, src, dest, props] = value as [number, number, number, number, [number, ValueType, unknown][]]
+      const relationType = await this.getRelationshipTypes(type);
+      const prop = {};
+      for(let [prop, type, value] of props){
+        const field = await this.getPropertyKeys(prop);
+        if(field){
+          Object.assign(prop, {[field]: await parseValue.call(this, type, value)});
+        }
       }
 
-      return parsedResults.filter(x => x != null)
-}
+      const edge = new Edge(this, src, relationType!, dest, prop);
+        this.edges.set(id, edge);
 
-export class RedisGraphCluster extends Redis.Cluster {
-  constructor (private graphName:string, nodes: Redis.ClusterNode[], {scaleReads = "master", ...options}:ClusterOptions) {
-    super(nodes, {
-      scaleReads(nodes: Redis.Redis[], command:any){
-        if(typeof scaleReads === "function"){
-          return scaleReads(nodes, command);
+        return edge;
+
+      }
+      break;
+    case ValueType.VALUE_NODE:
+      const prop = {};
+      
+      const [id, [label], props] = value as [number, number[], [number, ValueType, unknown][]];
+      const labels = await this.getLabels(label);
+      for(let [propId, type, value] of props){
+        const key = await this.getPropertyKeys(propId);
+        if(key){
+          Object.assign(prop, {[key]: await parseValue.call(this, type, value)})
         }
         
-        if(command.isReadOnly){
-          if(scaleReads === "all"){
+      }
+
+      
+      const node =  new Node(this, id, labels!, prop);
+      
+      this.nodes.set(id, node);
+      return node;
+      
+      break;
+    case ValueType.VALUE_PATH:
+      const [[nodesType,nodesValue], [edgesType,edgesValue]] = value as [[ValueType.VALUE_ARRAY, unknown], [ValueType.VALUE_ARRAY, unknown]];
+      
+      const [nodes, edges ] = await Promise.all([
+        parseValue.call(this, nodesType, nodesValue),
+        parseValue.call(this, edgesType, edgesValue)
+      ]);
+
+      const path = new Path(nodes as Node[], edges as Edge[])
+      return path;
+
+      break;
+    case ValueType.VALUE_MAP:
+      const obj = {}
+      let values = (value as unknown[]);
+       for(; values.length > 0; ){
+        const [field = false, [type, value]] = values.splice(0,2) as [string, Value];
+        if(field !== false){
+          Object.assign(obj, {[field]: await parseValue.call(this, type, value)});
+        }
+       }
+       return obj;
+      break;
+    case ValueType.VALUE_POINT:
+      return (value as string[]).map(parseFloat) ;
+      
+      break;
+  }
+}
+
+async function replyTransformer(this: RedisGraphCluster, response: RedisGraphResponse) {
+  const data: Array<{}> = [];
+  if (response.length === 3) {
+    const graph = new Graph(this);
+    const [header, result, stats] = response;
+
+    for (let rows of result) {
+      let index = 0;
+      const obj = {};
+      for (let [type, value] of rows) {
+        const val = await parseValue.call(graph, type, value);
+        const field = header[index][1];
+        Object.assign(obj, {[field]: val});
+        index++;
+      }
+      data.push(obj);
+      Object.assign(data, { [STATS]: parseStatistics(stats) });
+    }
+  } else {
+    const [stats] = response;
+
+    Object.assign(data, { [STATS]: parseStatistics(stats) });
+  }
+
+
+  return data;
+}
+
+const labelCache = new WeakMap<RedisGraphCluster, string[]>();
+const typeCache =  new WeakMap<RedisGraphCluster, string[]>();
+const propertyKeyCache =  new WeakMap<RedisGraphCluster, string[]>();
+
+export class RedisGraphCluster extends Redis.Cluster {
+ 
+  
+
+  async getPropertyKeys(id: number){
+    let propertyKeys = propertyKeyCache.get(this);
+    
+    if(!propertyKeys || !propertyKeys[id]){
+      propertyKeys = (await this.query("call db.propertyKeys()", {}, {readOnly: true}))?.map(({propertyKey}:any)=>propertyKey)!;
+      propertyKeyCache.set(this, propertyKeys!)
+    }
+
+    if(!propertyKeys){
+      return null;
+    }
+    
+    return propertyKeys[id]
+  }
+
+  async getRelationshipTypes(id: number){
+    let types = typeCache.get(this);
+    
+    if(!types || !types[id]){
+      types = (await this.query("call db.relationshipTypes()", {}, {readOnly: true}))?.map(({relationshipType}:any)=>relationshipType)!;
+      typeCache.set(this, types!)
+    }
+
+    if(!types){
+      return null;
+    }
+    
+    return types[id]
+  }
+
+  async getLabels(id:number){
+    let labels = labelCache.get(this);
+    
+    if(!labels || !labels[id]){
+      labels = (await this.query("call db.labels()", {}, {readOnly: true}))?.map(({label}:any)=>label)!;
+      labelCache.set(this, labels!)
+    }
+
+    if(!labels){
+      return null;
+    }
+    
+    return labels[id]
+  }
+
+  constructor(private graphName: string, nodes: Redis.ClusterNode[], { scaleReads = "master", ...options }: ClusterOptions = {}) {
+    super(nodes, {
+      scaleReads(nodes: Redis.Redis[], command: any) {
+        if (typeof scaleReads === "function") {
+          return scaleReads(nodes, command);
+        }
+
+        if (command.isReadOnly) {
+          if (scaleReads === "all") {
             return nodes;
           }
 
-          return nodes.filter(x=>x.options.readOnly);
+          return nodes.filter(x => x.options.readOnly);
         } else {
-          return nodes.filter(x=>!x.options.readOnly);
+          return nodes.filter(x => !x.options.readOnly);
         }
-        
-     }, ...options} as any)
-     this.nodes()
-    Redis.Command.setArgumentTransformer('GRAPH.QUERY',argumentTransformer);
-    Redis.Command.setReplyTransformer('GRAPH.QUERY', replyTransformer);
 
+      }, ...options
+    } as any)
 
-    Redis.Command.setArgumentTransformer('GRAPH.RO_QUERY',argumentTransformer);
-    Redis.Command.setReplyTransformer('GRAPH.RO_QUERY', replyTransformer);
+    Redis.Command.setArgumentTransformer('GRAPH.QUERY', argumentTransformer.bind(this));
+    Redis.Command.setReplyTransformer('GRAPH.QUERY', replyTransformer.bind(this));
+
+    Redis.Command.setArgumentTransformer('GRAPH.RO_QUERY', argumentTransformer.bind(this));
+    Redis.Command.setReplyTransformer('GRAPH.RO_QUERY', replyTransformer.bind(this));
   }
 
-  sendCommand(...args: any[]){
-    if(args.length > 0 && args[0] instanceof Command){
-      const command:any = args[0];
-      if(command.name === "GRAPH.RO_QUERY"){
+
+
+  async sendCommand(...args: any[]) {
+    if (args.length > 0 && args[0] instanceof Command) {
+      const command: any = args[0];
+      if (command.name === "GRAPH.RO_QUERY") {
         command.isReadOnly = true;
 
       }
     }
- return   super.sendCommand.apply(this, args as any);
     
+    return super.sendCommand.apply(this, args as any);
+
   }
-  async query (command:string, params:any, options: {
-    graphName?:string
+  async query(command: string, params: any, options: {
+    graphName?: string
     readOnly?: boolean
-  } = {} ) {
-    const _this:any = this
-    const {graphName, readOnly} = options;
-    return _this.call( readOnly ? 'GRAPH.RO_QUERY':'GRAPH.QUERY', graphName ?? this.graphName, `${command}`, params)
+  } = {}) {
+    const _this: any = this
+    const { graphName, readOnly } = options;
+    return _this.call(readOnly ? 'GRAPH.RO_QUERY' : 'GRAPH.QUERY', graphName ?? this.graphName, `${command}`, params)
   }
 }
