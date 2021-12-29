@@ -224,8 +224,6 @@ const propertyKeyCache =  new WeakMap<RedisGraphCluster, string[]>();
 
 export class RedisGraphCluster extends Redis.Cluster {
  
-  
-
   async getPropertyKeys(id: number){
     let propertyKeys = propertyKeyCache.get(this);
     
