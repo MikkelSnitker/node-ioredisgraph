@@ -1,20 +1,15 @@
 import Redis from 'ioredis';
-export declare class RedisGraph extends Redis {
-    private graphName;
-    constructor(graphName: string, port?: number, host?: string, options?: Redis.RedisOptions);
-    constructor(graphName: string, host?: string, options?: Redis.RedisOptions);
-    constructor(graphName: string, options?: Redis.RedisOptions);
-    query(command: string): any;
-    delete(): any;
-    explain(command: string): any;
-}
 interface ClusterOptions extends Omit<Redis.ClusterOptions, "scaleReads"> {
     scaleReads?: "master" | "slave" | "all" | Function;
 }
+export declare const STATS: unique symbol;
 export declare class RedisGraphCluster extends Redis.Cluster {
     private graphName;
-    constructor(graphName: string, nodes: Redis.ClusterNode[], { scaleReads, ...options }: ClusterOptions);
-    sendCommand(...args: any[]): void;
+    getPropertyKeys(id: number): Promise<string | null>;
+    getRelationshipTypes(id: number): Promise<string | null>;
+    getLabels(id: number): Promise<string | null>;
+    constructor(graphName: string, nodes: Redis.ClusterNode[], { scaleReads, ...options }?: ClusterOptions);
+    sendCommand(...args: any[]): Promise<void>;
     query(command: string, params: any, options?: {
         graphName?: string;
         readOnly?: boolean;
