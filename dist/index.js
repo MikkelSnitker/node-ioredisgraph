@@ -63,7 +63,7 @@ export class RedisGraph extends Redis {
 */
 const nodeId = Symbol('nodeId');
 function serialize(obj) {
-    if (obj === null) {
+    if (obj === null || obj === undefined) {
         return null;
     }
     if (Array.isArray(obj)) {
