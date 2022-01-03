@@ -10,9 +10,9 @@ export declare class RedisGraphCluster extends Redis.Cluster {
     getLabels(id: number): Promise<string | null>;
     constructor(graphName: string, nodes: Redis.ClusterNode[], { scaleReads, ...options }?: ClusterOptions);
     sendCommand(...args: any[]): Promise<void>;
-    query(command: string, params: any, options?: {
+    query<T = unknown>(command: string, params: any, options?: {
         graphName?: string;
         readOnly?: boolean;
-    }): Promise<any>;
+    }): Promise<T[]>;
 }
 export {};
