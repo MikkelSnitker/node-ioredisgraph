@@ -310,10 +310,10 @@ export class RedisGraphCluster extends Redis.Cluster {
     return super.sendCommand.apply(this, args as any);
 
   }
-  async query(command: string, params: any, options: {
+  async query<T = unknown>(command: string, params: any, options: {
     graphName?: string
     readOnly?: boolean
-  } = {}) {
+  } = {}) : Promise<T[]> {
     const _this: any = this
     const { graphName, readOnly } = options;
     return _this.call(readOnly ? 'GRAPH.RO_QUERY' : 'GRAPH.QUERY', graphName ?? this.graphName, `${command}`, params)
