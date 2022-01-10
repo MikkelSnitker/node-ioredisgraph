@@ -206,8 +206,8 @@ async function replyTransformer(this: RedisGraphCluster, response: RedisGraphRes
         index++;
       }
       data.push(obj);
-      Object.assign(data, { [STATS]: parseStatistics(stats) });
     }
+    Object.assign(data, { [STATS]: parseStatistics(stats) });
   } else {
     const [stats] = response;
 
