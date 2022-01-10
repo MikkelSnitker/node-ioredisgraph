@@ -194,8 +194,8 @@ async function replyTransformer(response) {
                 index++;
             }
             data.push(obj);
-            Object.assign(data, { [exports.STATS]: parseStatistics(stats) });
         }
+        Object.assign(data, { [exports.STATS]: parseStatistics(stats) });
     }
     else {
         const [stats] = response;
