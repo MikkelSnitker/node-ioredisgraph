@@ -84,7 +84,7 @@ enum ValueType {
   VALUE_POINT = 11
 };
 
-type Stats = {
+export type Stats = {
   LabelsAdded?: number;
   NodesCreated?: number;
   PropertiesSet?: number;
