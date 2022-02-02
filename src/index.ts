@@ -350,7 +350,7 @@ export class RedisGraphCluster extends Redis.Cluster {
 }
 
 
-export function getStatistics(response: {}): Stats | null{
+export function getStatistics(response: unknown[]): Stats | null{
   if (STATS in response){
     return (response as any)[STATS];
   }

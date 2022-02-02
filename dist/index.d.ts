@@ -24,5 +24,5 @@ export declare class RedisGraphCluster extends Redis.Cluster {
         readOnly?: boolean;
     }): Promise<T[]>;
 }
-export declare function getStatistics(response: {}): Stats | null;
+export declare function getStatistics(response: unknown[]): Stats | null;
 export {};
