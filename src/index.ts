@@ -84,6 +84,16 @@ enum ValueType {
   VALUE_POINT = 11
 };
 
+type Stats = {
+  LabelsAdded?: number;
+  NodesCreated?: number;
+  PropertiesSet?: number;
+  NodesDeleted?: number;
+  RelationshipsDeleted?: number;
+  RelationshipsCreated?: number;
+  QueryInternalExecutionTime?:  number;
+}
+
 function argumentTransformer(this: RedisGraphCluster, args: any[]) {
   const [graphName, cypher, params] = args
 
@@ -99,8 +109,27 @@ type ResultRow = Array<Value[]>
 
 type RedisGraphResponse = [QueryStatistics] | [HeaderRow, ResultRow, QueryStatistics];
 
-function parseStatistics(stats: QueryStatistics) {
-  return stats.map(x => x.split(":")).reduce((result, [prop, val]) => Object.assign(result, { [prop.toUpperCase()]: val }));
+function parseStatistics(stats: QueryStatistics):Stats {
+  function parseKey(key:string): keyof Stats{
+    return key.split(" ").map(x=>x.replace(/^./, (a)=>a.toUpperCase())).join("") as keyof Stats;
+  }
+  
+  
+  function parseValue(key: keyof Stats, value: `${number} milliseconds` | `${number}`){
+    switch(key){
+      case "QueryInternalExecutionTime":
+        return parseFloat(value);
+
+      default:
+        return parseInt(value);
+    }
+  }
+
+  return stats.map(x => x.split(": ")).reduce((result, [prop, val]) =>{ 
+    const key = parseKey(prop);
+    const value = parseValue(key, val as `${number} milliseconds` | `${number}`);
+    return Object.assign(result, { [key]: value });
+  }, {} as Stats);
 }
 
 export const STATS = Symbol("stats");
@@ -318,4 +347,13 @@ export class RedisGraphCluster extends Redis.Cluster {
     const { graphName, readOnly } = options;
     return _this.call(readOnly ? 'GRAPH.RO_QUERY' : 'GRAPH.QUERY', graphName ?? this.graphName, `${command}`, params)
   }
+}
+
+
+export function getStatistics(response: {}): Stats | null{
+  if (STATS in response){
+    return (response as any)[STATS];
+  }
+
+  return null;
 }

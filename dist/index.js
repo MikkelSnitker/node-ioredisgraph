@@ -19,7 +19,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RedisGraphCluster = exports.STATS = void 0;
+exports.getStatistics = exports.RedisGraphCluster = exports.STATS = void 0;
 const ioredis_1 = __importStar(require("ioredis"));
 const Node_1 = require("./Node");
 const Edge_1 = require("./Edge");
@@ -104,7 +104,22 @@ function argumentTransformer(args) {
     return [graphName, `CYPHER ${paramStr}; ${cypher}`, '--compact'];
 }
 function parseStatistics(stats) {
-    return stats.map(x => x.split(":")).reduce((result, [prop, val]) => Object.assign(result, { [prop.toUpperCase()]: val }));
+    function parseKey(key) {
+        return key.split(" ").map(x => x.replace(/^./, (a) => a.toUpperCase())).join("");
+    }
+    function parseValue(key, value) {
+        switch (key) {
+            case "QueryInternalExecutionTime":
+                return parseFloat(value);
+            default:
+                return parseInt(value);
+        }
+    }
+    return stats.map(x => x.split(": ")).reduce((result, [prop, val]) => {
+        const key = parseKey(prop);
+        const value = parseValue(key, val);
+        return Object.assign(result, { [key]: value });
+    }, {});
 }
 exports.STATS = Symbol("stats");
 async function parseValue(type, value) {
@@ -279,3 +294,10 @@ class RedisGraphCluster extends ioredis_1.default.Cluster {
     }
 }
 exports.RedisGraphCluster = RedisGraphCluster;
+function getStatistics(response) {
+    if (exports.STATS in response) {
+        return response[exports.STATS];
+    }
+    return null;
+}
+exports.getStatistics = getStatistics;
