@@ -2,7 +2,7 @@ import Redis from 'ioredis';
 interface ClusterOptions extends Omit<Redis.ClusterOptions, "scaleReads"> {
     scaleReads?: "master" | "slave" | "all" | Function;
 }
-declare type Stats = {
+export declare type Stats = {
     LabelsAdded?: number;
     NodesCreated?: number;
     PropertiesSet?: number;
@@ -12,7 +12,7 @@ declare type Stats = {
     QueryInternalExecutionTime?: number;
 };
 export declare const STATS: unique symbol;
-export declare class RedisGraphCluster extends Redis.Cluster {
+export declare class RedisGraphCluster extends Redis.Cluster implements Redis.Commands {
     private graphName;
     getPropertyKeys(id: number): Promise<string | null>;
     getRelationshipTypes(id: number): Promise<string | null>;
