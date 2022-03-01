@@ -2,7 +2,7 @@ import Redis, { Command } from 'ioredis'
 import { Node } from './Node';
 import { Edge } from './Edge'
 import { Path } from './Path';
-import { Graph } from './Graph'
+import { Graph } from './Graph'
 /*
 export class RedisGraph extends Redis {
     private graphName!:string;
@@ -113,8 +113,8 @@ function parseStatistics(stats: QueryStatistics):Stats {
   function parseKey(key:string): keyof Stats{
     return key.split(" ").map(x=>x.replace(/^./, (a)=>a.toUpperCase())).join("") as keyof Stats;
   }
-  
-  
+
+
   function parseValue(key: keyof Stats, value: `${number} milliseconds` | `${number}`){
     switch(key){
       case "QueryInternalExecutionTime":
@@ -125,7 +125,7 @@ function parseStatistics(stats: QueryStatistics):Stats {
     }
   }
 
-  return stats.map(x => x.split(": ")).reduce((result, [prop, val]) =>{ 
+  return stats.map(x => x.split(": ")).reduce((result, [prop, val]) =>{
     const key = parseKey(prop);
     const value = parseValue(key, val as `${number} milliseconds` | `${number}`);
     return Object.assign(result, { [key]: value });
@@ -171,7 +171,7 @@ async function parseValue(this: Graph, type: ValueType, value: unknown): Promise
       break;
     case ValueType.VALUE_NODE:
       const prop = {};
-      
+
       const [id, [label], props] = value as [number, number[], [number, ValueType, unknown][]];
       const labels = await this.getLabels(label);
       for(let [propId, type, value] of props){
@@ -179,19 +179,19 @@ async function parseValue(this: Graph, type: ValueType, value: unknown): Promise
         if(key){
           Object.assign(prop, {[key]: await parseValue.call(this, type, value)})
         }
-        
+
       }
 
-      
+
       const node =  new Node(this, id, labels!, prop);
-      
+
       this.nodes.set(id, node);
       return node;
-      
+
       break;
     case ValueType.VALUE_PATH:
       const [[nodesType,nodesValue], [edgesType,edgesValue]] = value as [[ValueType.VALUE_ARRAY, unknown], [ValueType.VALUE_ARRAY, unknown]];
-      
+
       const [nodes, edges ] = await Promise.all([
         parseValue.call(this, nodesType, nodesValue),
         parseValue.call(this, edgesType, edgesValue)
@@ -214,7 +214,7 @@ async function parseValue(this: Graph, type: ValueType, value: unknown): Promise
       break;
     case ValueType.VALUE_POINT:
       return (value as string[]).map(parseFloat) ;
-      
+
       break;
   }
 }
@@ -251,11 +251,11 @@ const labelCache = new WeakMap<RedisGraphCluster, string[]>();
 const typeCache =  new WeakMap<RedisGraphCluster, string[]>();
 const propertyKeyCache =  new WeakMap<RedisGraphCluster, string[]>();
 
-export class RedisGraphCluster extends Redis.Cluster {
- 
+export class RedisGraphCluster extends Redis.Cluster implements Redis.Commands {
+
   async getPropertyKeys(id: number){
     let propertyKeys = propertyKeyCache.get(this);
-    
+
     if(!propertyKeys || !propertyKeys[id]){
       propertyKeys = (await this.query("call db.propertyKeys()", {}, {readOnly: true}))?.map(({propertyKey}:any)=>propertyKey)!;
       propertyKeyCache.set(this, propertyKeys!)
@@ -264,13 +264,13 @@ export class RedisGraphCluster extends Redis.Cluster {
     if(!propertyKeys){
       return null;
     }
-    
+
     return propertyKeys[id]
   }
 
   async getRelationshipTypes(id: number){
     let types = typeCache.get(this);
-    
+
     if(!types || !types[id]){
       types = (await this.query("call db.relationshipTypes()", {}, {readOnly: true}))?.map(({relationshipType}:any)=>relationshipType)!;
       typeCache.set(this, types!)
@@ -279,13 +279,13 @@ export class RedisGraphCluster extends Redis.Cluster {
     if(!types){
       return null;
     }
-    
+
     return types[id]
   }
 
   async getLabels(id:number){
     let labels = labelCache.get(this);
-    
+
     if(!labels || !labels[id]){
       labels = (await this.query("call db.labels()", {}, {readOnly: true}))?.map(({label}:any)=>label)!;
       labelCache.set(this, labels!)
@@ -294,7 +294,7 @@ export class RedisGraphCluster extends Redis.Cluster {
     if(!labels){
       return null;
     }
-    
+
     return labels[id]
   }
 
@@ -335,7 +335,7 @@ export class RedisGraphCluster extends Redis.Cluster {
 
       }
     }
-    
+
     return super.sendCommand.apply(this, args as any);
 
   }
