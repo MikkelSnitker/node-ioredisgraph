@@ -1,3 +1,4 @@
+/// <reference types="@types/ioredis" />
 import Redis from 'ioredis';
 interface ClusterOptions extends Omit<Redis.ClusterOptions, "scaleReads"> {
     scaleReads?: "master" | "slave" | "all" | Function;
