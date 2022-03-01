@@ -3,44 +3,6 @@ import { Node } from './Node';
 import { Edge } from './Edge'
 import { Path } from './Path';
 import { Graph } from './Graph'
-/*
-export class RedisGraph extends Redis {
-    private graphName!:string;
-
-    constructor (graphName:string, port?: number, host?: string, options?: Redis.RedisOptions);
-    constructor (graphName:string, host?: string, options?: Redis.RedisOptions);
-    constructor (graphName:string, options?: Redis.RedisOptions);
-    constructor (graphName:string, ...args:any[]) {
-      super(...args)
-      this.graphName = graphName
-
-      if (!this.graphName || this.graphName.length < 1) {
-        throw new Error('Must specify a graph name in constructor')
-      }
-
-      Redis.Command.setArgumentTransformer('GRAPH.QUERY',argumentTransformer)
-      Redis.Command.setReplyTransformer('GRAPH.QUERY',replyTransformer)
-    }
-
-    query (command:string) {
-      const _this:any = this
-      super.hset
-      return _this.call('GRAPH.QUERY', this.graphName, `${command}`)
-    }
-
-    delete () {
-      const _this:any = this
-      return _this.call('GRAPH.DELETE', this.graphName)
-    }
-
-    explain (command:string) {
-      const _this:any = this
-      return _this.call('GRAPH.EXPLAIN', this.graphName, `${command}`)
-    }
-}
-*/
-
-const nodeId = Symbol('nodeId')
 
 function serialize(obj: unknown): string | null {
   if (obj === null || obj === undefined) {
