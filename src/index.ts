@@ -61,7 +61,7 @@ function argumentTransformer(this: RedisGraphCluster, args: any[]) {
 
   const paramStr = Object.keys(params ?? {}).reduce((result, key) => result += `${key} = ${serialize(params[key as keyof typeof params])} `, '')
 
-  return [graphName, `CYPHER ${paramStr}; ${cypher}`, '--compact']
+  return [graphName, `CYPHER ${paramStr} ${cypher}`, '--compact']
 }
 
 type Value<T = unknown> = [ValueType, T]
