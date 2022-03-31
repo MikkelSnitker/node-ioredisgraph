@@ -64,7 +64,7 @@ var ValueType;
 function argumentTransformer(args) {
     const [graphName, cypher, params] = args;
     const paramStr = Object.keys(params ?? {}).reduce((result, key) => result += `${key} = ${serialize(params[key])} `, '');
-    return [graphName, `CYPHER ${paramStr}; ${cypher}`, '--compact'];
+    return [graphName, `CYPHER ${paramStr} ${cypher}`, '--compact'];
 }
 function parseStatistics(stats) {
     function parseKey(key) {
