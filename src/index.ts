@@ -116,9 +116,9 @@ async function parseValue(this: Graph, type: ValueType, value: unknown): Promise
     case ValueType.VALUE_EDGE:{
       const [id, type, src, dest, props] = value as [number, number, number, number, [number, ValueType, unknown][]]
       const relationType = await this.getRelationshipTypes(type);
-      const prop = {};
-      for(let [prop, type, value] of props){
-        const field = await this.getPropertyKeys(prop);
+      const prop = {};
+      for(let [propId, type, value] of props){
+        const field = await this.getPropertyKeys(propId);
         if(field){
           Object.assign(prop, {[field]: await parseValue.call(this, type, value)});
         }

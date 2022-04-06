@@ -107,8 +107,8 @@ async function parseValue(type, value) {
                 const [id, type, src, dest, props] = value;
                 const relationType = await this.getRelationshipTypes(type);
                 const prop = {};
-                for (let [prop, type, value] of props) {
-                    const field = await this.getPropertyKeys(prop);
+                for (let [propId, type, value] of props) {
+                    const field = await this.getPropertyKeys(propId);
                     if (field) {
                         Object.assign(prop, { [field]: await parseValue.call(this, type, value) });
                     }
