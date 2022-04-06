@@ -260,24 +260,8 @@ export class RedisGraphCluster extends Redis.Cluster implements Redis.Commands {
     return labels[id]
   }
 
-  constructor(private graphName: string, nodes: Redis.ClusterNode[], { scaleReads = "master", ...options }: ClusterOptions = {}) {
-    super(nodes, {
-      scaleReads(nodes: Redis.Redis[], command: any) {
-        if (typeof scaleReads === "function") {
-          return scaleReads(nodes, command);
-        }
-
-        if (command.isReadOnly) {
-          if (scaleReads === "all") {
-            return nodes;
-          }
-
-          return nodes.filter(x => x.options.readOnly);
-        } else {
-          return nodes.filter(x => !x.options.readOnly);
-        }
-
-      }, ...options
+  constructor(private graphName: string, nodes: Redis.ClusterNode[], { scaleReads = "all", ...options }: ClusterOptions = {}) {
+    super(nodes, {scaleReads,  ...options
     } as any)
 
     Redis.Command.setArgumentTransformer('GRAPH.QUERY', argumentTransformer.bind(this));

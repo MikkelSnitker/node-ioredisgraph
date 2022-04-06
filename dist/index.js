@@ -185,22 +185,8 @@ const labelCache = new WeakMap();
 const typeCache = new WeakMap();
 const propertyKeyCache = new WeakMap();
 class RedisGraphCluster extends ioredis_1.default.Cluster {
-    constructor(graphName, nodes, { scaleReads = "master", ...options } = {}) {
-        super(nodes, {
-            scaleReads(nodes, command) {
-                if (typeof scaleReads === "function") {
-                    return scaleReads(nodes, command);
-                }
-                if (command.isReadOnly) {
-                    if (scaleReads === "all") {
-                        return nodes;
-                    }
-                    return nodes.filter(x => x.options.readOnly);
-                }
-                else {
-                    return nodes.filter(x => !x.options.readOnly);
-                }
-            }, ...options
+    constructor(graphName, nodes, { scaleReads = "all", ...options } = {}) {
+        super(nodes, { scaleReads, ...options
         });
         this.graphName = graphName;
         ioredis_1.default.Command.setArgumentTransformer('GRAPH.QUERY', argumentTransformer.bind(this));
