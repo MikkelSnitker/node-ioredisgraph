@@ -1,23 +1,13 @@
-import { RedisGraphCluster } from ".";
+
+import { Redis } from "ioredis";
+import { GraphCommand } from "./GraphCommand";
+
 
 export class Graph {
   
     public nodes = new Map<number,{}>();
     public edges = new Map<number,{}>();
-    constructor(private connection:RedisGraphCluster){
+    constructor(){
   
     }
-  
-    getLabels(id:number){
-      return this.connection.getLabels(id);
-    }
-  
-    getPropertyKeys(id:number){
-      return this.connection.getPropertyKeys(id);
-    }
-  
-    getRelationshipTypes(id:number){
-      return this.connection.getRelationshipTypes(id);
-    }
-  
-  }
+}

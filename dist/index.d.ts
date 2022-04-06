@@ -1,29 +1,15 @@
 /// <reference types="@types/ioredis" />
 import Redis from 'ioredis';
+export { getStatistics } from './Stats';
 interface ClusterOptions extends Omit<Redis.ClusterOptions, "scaleReads"> {
-    scaleReads?: "master" | "slave" | "all" | Function;
+    scaleReads?: "master" | "slave" | "all";
 }
-export declare type Stats = {
-    LabelsAdded?: number;
-    NodesCreated?: number;
-    PropertiesSet?: number;
-    NodesDeleted?: number;
-    RelationshipsDeleted?: number;
-    RelationshipsCreated?: number;
-    QueryInternalExecutionTime?: number;
-};
-export declare const STATS: unique symbol;
 export declare class RedisGraphCluster extends Redis.Cluster implements Redis.Commands {
     private graphName;
-    getPropertyKeys(id: number): Promise<string | null>;
-    getRelationshipTypes(id: number): Promise<string | null>;
-    getLabels(id: number): Promise<string | null>;
     constructor(graphName: string, nodes: Redis.ClusterNode[], { scaleReads, ...options }?: ClusterOptions);
-    sendCommand(...args: any[]): Promise<void>;
+    getNode(isReadOnly: boolean): Redis.Redis;
     query<T = unknown>(command: string, params: any, options?: {
         graphName?: string;
         readOnly?: boolean;
     }): Promise<T[]>;
 }
-export declare function getStatistics(response: unknown[]): Stats | null;
-export {};

@@ -8,7 +8,7 @@ const redis = new  RedisGraphCluster("Test1", [
 ]);
 
 async function  run() {
-    const response = await redis.query("MATCH (a:wish) set a.foo = 1234",
+    const response = await redis.query("MATCH (c:card)-[l:LOCALIZATION]->(c) return c,l",
    // const response = await redis.query("MATCH (a:wish{id:$wishId})-[r:RESERVED_BY]->(u:user) RETURN a, r, u, point({latitude: 55.785290, longitude: 12.321330}) as geo",
    //const response = await redis.query("MATCH a = (a:wish{id:$wishId})-[r:RESERVED_BY]->(u:user) RETURN a",
         {wishId: "qBNImEi8gsbEcYnF27iya"},
@@ -16,7 +16,7 @@ async function  run() {
     );
     const stats = getStatistics(response);
     
-    console.log(stats?.QueryInternalExecutionTime,response)
+    console.log(response)
 
 }
 
