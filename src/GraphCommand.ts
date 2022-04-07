@@ -1,13 +1,20 @@
-import Redis from 'ioredis';
+import Redis, { ValueType } from 'ioredis';
 import { Node } from './Node';
 import { Edge } from './Edge'
 import { Path } from './Path';
 import { Graph } from './Graph'
 import {GraphResponse, RedisGraphResponse} from './GraphResponse';
 
+
 declare module "ioredis" {
-    interface Redis {
+
+
+    interface Commander {
         sendCommand(command: unknown): Promise<RedisGraphResponse>;
+    }
+
+    interface Redis extends Commander {
+    
     }
 }
 
@@ -39,31 +46,30 @@ function argumentTransformer(args: any[]) {
 }
 
 
+export class GraphCommand extends Redis.Command {
 
-
-
-export class GraphCommand {
-
-    static async create(node: Redis.Redis, cypherQuery: string, params?: Record<string, unknown>, options?: CypherQueryOptions) {
+    private constructor(name: string,args: ValueType[]) {
+        super(name, args, { replyEncoding: "utf8"})
+    }
+    static create(node: Redis.Commander, cypherQuery: string, params?: Record<string, unknown>, options?: CypherQueryOptions) {
+    
         const { readOnly = false, graphName } = options ?? {};
         if (!graphName) {
             throw new Error("Graphname missing")
         }
 
+        
         const args = argumentTransformer([graphName, cypherQuery, params]);
-        const command = new Redis.Command(readOnly ? 'GRAPH.RO_QUERY' : 'GRAPH.QUERY', args, {
-            replyEncoding: "utf8"
-        })
+        const command = new GraphCommand(readOnly ? 'GRAPH.RO_QUERY' : 'GRAPH.QUERY', args)
 
         if (isRedisCommand(command)) {
             if (readOnly) {
                 command.isReadOnly = true;
             }
-        }
 
-        const response = new GraphResponse(node, options);
-        const a = await response.parse(await node.sendCommand(command));
-        return a;
+            return command;
+        }
+        return null;
     }
 }
 
