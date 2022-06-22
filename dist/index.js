@@ -24,7 +24,7 @@ class RedisGraphCluster extends ioredis_1.default.Cluster {
         }
         const hasSlot = ({ options }, keySlot) => {
             const slot = this.slots[keySlot] ?? [];
-            slot.includes(`${options.host}:${options.port}`);
+            return slot.includes(`${options.host}:${options.port}`);
         };
         let nodes;
         let { scaleReads } = this.options;

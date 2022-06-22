@@ -29,8 +29,8 @@ export class RedisGraphCluster extends Redis.Cluster implements Redis.Commands {
     }
 
     const hasSlot = ({options}: Redis.Redis, keySlot: number) => {
-     const slot = this.slots[keySlot] ?? [];
-     slot.includes(`${options.host}:${options.port}`)
+      const slot = this.slots[keySlot] ?? [];
+      return slot.includes(`${options.host}:${options.port}`)
     }
 
     let nodes: Redis.Redis[];
