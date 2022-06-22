@@ -1,4 +1,4 @@
-import Redis from 'ioredis';
+import { Graph } from "./Graph";
 import { QueryStatistics } from './Stats';
 import { CypherQueryOptions } from "./GraphCommand";
 declare enum ColumnType {
@@ -26,15 +26,14 @@ declare type HeaderRow = Array<[ColumnType, string]>;
 declare type ResultRow = Array<Value[]>;
 export declare type RedisGraphResponse = [QueryStatistics] | [HeaderRow, ResultRow, QueryStatistics];
 export declare class GraphResponse {
-    private node;
-    private options?;
     private graph;
-    constructor(node: Redis.Redis, options?: CypherQueryOptions | undefined);
+    private options?;
+    constructor(graph: Graph, options?: CypherQueryOptions | undefined);
     private sendCommand;
     private getPropertyKeys;
     private getRelationshipTypes;
     private getLabels;
     private parseValue;
-    parse(response: RedisGraphResponse): Promise<{}[]>;
+    parse<T>(response: RedisGraphResponse): Promise<T[]>;
 }
 export {};

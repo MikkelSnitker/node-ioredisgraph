@@ -4,7 +4,6 @@ exports.GraphResponse = void 0;
 const Edge_1 = require("./Edge");
 const Node_1 = require("./Node");
 const Path_1 = require("./Path");
-const Graph_1 = require("./Graph");
 const Stats_1 = require("./Stats");
 const GraphCommand_1 = require("./GraphCommand");
 const labelCache = new WeakMap();
@@ -35,19 +34,19 @@ var ValueType;
 })(ValueType || (ValueType = {}));
 ;
 class GraphResponse {
-    constructor(node, options) {
-        this.node = node;
+    constructor(graph, options) {
+        this.graph = graph;
         this.options = options;
-        this.graph = new Graph_1.Graph();
     }
     async sendCommand(command) {
-        return await GraphCommand_1.GraphCommand.create(this.node, command, {}, this.options);
+        const response = await this.graph.node.sendCommand(GraphCommand_1.GraphCommand.create(this.graph.node, command, {}, this.options));
+        return this.parse(response);
     }
     async getPropertyKeys(id) {
-        let propertyKeys = propertyKeyCache.get(this.node);
+        let propertyKeys = propertyKeyCache.get(this.graph.node);
         if (!propertyKeys || !propertyKeys[id]) {
             propertyKeys = (await this.sendCommand("call db.propertyKeys()"))?.map(({ propertyKey }) => propertyKey);
-            propertyKeyCache.set(this.node, propertyKeys);
+            propertyKeyCache.set(this.graph.node, propertyKeys);
         }
         if (!propertyKeys) {
             return null;
@@ -55,10 +54,10 @@ class GraphResponse {
         return propertyKeys[id];
     }
     async getRelationshipTypes(id) {
-        let types = typeCache.get(this.node);
+        let types = typeCache.get(this.graph.node);
         if (!types || !types[id]) {
             types = (await this.sendCommand("call db.relationshipTypes()"))?.map(({ relationshipType }) => relationshipType);
-            typeCache.set(this.node, types);
+            typeCache.set(this.graph.node, types);
         }
         if (!types) {
             return null;
@@ -66,10 +65,10 @@ class GraphResponse {
         return types[id];
     }
     async getLabels(id) {
-        let labels = labelCache.get(this.node);
+        let labels = labelCache.get(this.graph.node);
         if (!labels || !labels[id]) {
             labels = (await this.sendCommand("call db.labels()"))?.map(({ label }) => label);
-            labelCache.set(this.node, labels);
+            labelCache.set(this.graph.node, labels);
         }
         if (!labels) {
             return null;

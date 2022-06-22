@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isRedisCommand = exports.GraphCommand = void 0;
 const ioredis_1 = __importDefault(require("ioredis"));
-const GraphResponse_1 = require("./GraphResponse");
 function serialize(obj) {
     if (obj === null || obj === undefined) {
         return null;
@@ -23,24 +22,24 @@ function argumentTransformer(args) {
     const paramStr = Object.keys(params ?? {}).reduce((result, key) => result += `${key} = ${serialize(params[key])} `, '');
     return [graphName, `CYPHER ${paramStr} ${cypher}`, '--compact'];
 }
-class GraphCommand {
-    static async create(node, cypherQuery, params, options) {
+class GraphCommand extends ioredis_1.default.Command {
+    constructor(name, args) {
+        super(name, args, { replyEncoding: "utf8" });
+    }
+    static create(node, cypherQuery, params, options) {
         const { readOnly = false, graphName } = options ?? {};
         if (!graphName) {
             throw new Error("Graphname missing");
         }
         const args = argumentTransformer([graphName, cypherQuery, params]);
-        const command = new ioredis_1.default.Command(readOnly ? 'GRAPH.RO_QUERY' : 'GRAPH.QUERY', args, {
-            replyEncoding: "utf8"
-        });
+        const command = new GraphCommand(readOnly ? 'GRAPH.RO_QUERY' : 'GRAPH.QUERY', args);
         if (isRedisCommand(command)) {
             if (readOnly) {
                 command.isReadOnly = true;
             }
+            return command;
         }
-        const response = new GraphResponse_1.GraphResponse(node, options);
-        const a = await response.parse(await node.sendCommand(command));
-        return a;
+        return null;
     }
 }
 exports.GraphCommand = GraphCommand;
