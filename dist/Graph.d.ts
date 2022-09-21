@@ -1,10 +1,9 @@
-import { Commander } from "ioredis";
-import { CypherQueryOptions } from "./GraphCommand";
+import { GraphCommand, CypherQueryOptions } from "./GraphCommand";
 export declare class Graph {
-    node: Commander;
-    private options;
+    readonly options: CypherQueryOptions;
     nodes: Map<number, {}>;
     edges: Map<number, {}>;
-    constructor(node: Commander, options: CypherQueryOptions);
-    query<T>(cypherQuery: string, params: Record<string, unknown>): Promise<T[]>;
+    constructor(options: CypherQueryOptions);
+    get name(): string | undefined;
+    query<T>(cypherQuery: string, params: Record<string, unknown>): GraphCommand;
 }

@@ -1,3 +1,4 @@
+import * as Redis from 'ioredis';
 import { Graph } from "./Graph";
 import { QueryStatistics } from './Stats';
 import { CypherQueryOptions } from "./GraphCommand";
@@ -27,13 +28,14 @@ declare type ResultRow = Array<Value[]>;
 export declare type RedisGraphResponse = [QueryStatistics] | [HeaderRow, ResultRow, QueryStatistics];
 export declare class GraphResponse {
     private graph;
+    private node;
     private options?;
-    constructor(graph: Graph, options?: CypherQueryOptions | undefined);
+    constructor(graph: Graph, node: Redis.Redis | Redis.Cluster, options?: CypherQueryOptions | undefined);
     private sendCommand;
     private getPropertyKeys;
     private getRelationshipTypes;
     private getLabels;
     private parseValue;
-    parse<T>(response: RedisGraphResponse): Promise<T[]>;
+    parse<T extends {}>(response: RedisGraphResponse): Promise<T[]>;
 }
 export {};

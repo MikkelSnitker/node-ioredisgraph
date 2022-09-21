@@ -1,10 +1,9 @@
-/// <reference types="@types/ioredis" />
-import Redis from 'ioredis';
-import { RedisGraphResponse } from './GraphResponse';
-
+import * as Redis from 'ioredis';
+import { Graph } from './Graph';
 export declare class GraphCommand extends Redis.Command {
+    readonly graph: Graph;
     private constructor();
-    static create(node: Redis.Commander, cypherQuery: string, params?: Record<string, unknown>, options?: CypherQueryOptions): (GraphCommand & Command) | null;
+    static create(graph: Graph, cypherQuery: string, params?: Record<string, unknown>, options?: CypherQueryOptions): GraphCommand | undefined;
 }
 export interface CypherQueryOptions {
     graphName?: string;

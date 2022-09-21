@@ -34,19 +34,20 @@ var ValueType;
 })(ValueType || (ValueType = {}));
 ;
 class GraphResponse {
-    constructor(graph, options) {
+    constructor(graph, node, options) {
         this.graph = graph;
+        this.node = node;
         this.options = options;
     }
     async sendCommand(command) {
-        const response = await this.graph.node.sendCommand(GraphCommand_1.GraphCommand.create(this.graph.node, command, {}, this.options));
+        const response = await this.node.sendCommand(GraphCommand_1.GraphCommand.create(this.graph, command, {}, this.options));
         return this.parse(response);
     }
     async getPropertyKeys(id) {
-        let propertyKeys = propertyKeyCache.get(this.graph.node);
+        let propertyKeys = propertyKeyCache.get(this.node);
         if (!propertyKeys || !propertyKeys[id]) {
             propertyKeys = (await this.sendCommand("call db.propertyKeys()"))?.map(({ propertyKey }) => propertyKey);
-            propertyKeyCache.set(this.graph.node, propertyKeys);
+            propertyKeyCache.set(this.node, propertyKeys);
         }
         if (!propertyKeys) {
             return null;
@@ -54,10 +55,10 @@ class GraphResponse {
         return propertyKeys[id];
     }
     async getRelationshipTypes(id) {
-        let types = typeCache.get(this.graph.node);
+        let types = typeCache.get(this.node);
         if (!types || !types[id]) {
             types = (await this.sendCommand("call db.relationshipTypes()"))?.map(({ relationshipType }) => relationshipType);
-            typeCache.set(this.graph.node, types);
+            typeCache.set(this.node, types);
         }
         if (!types) {
             return null;
@@ -65,10 +66,10 @@ class GraphResponse {
         return types[id];
     }
     async getLabels(id) {
-        let labels = labelCache.get(this.graph.node);
+        let labels = labelCache.get(this.node);
         if (!labels || !labels[id]) {
             labels = (await this.sendCommand("call db.labels()"))?.map(({ label }) => label);
-            labelCache.set(this.graph.node, labels);
+            labelCache.set(this.node, labels);
         }
         if (!labels) {
             return null;
