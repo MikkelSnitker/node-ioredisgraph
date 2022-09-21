@@ -1,4 +1,4 @@
-import Redis from 'ioredis';
+import * as Redis from 'ioredis';
 import { Edge } from './Edge';
 import { Node } from './Node';
 import { Path } from './Path';
@@ -7,9 +7,9 @@ import { parseStatistics, QueryStatistics, STATS } from './Stats'
 import { GraphCommand, CypherQueryOptions} from "./GraphCommand";
 
 
-const labelCache = new WeakMap<Redis.Commander, string[]>();
-const typeCache = new WeakMap<Redis.Commander, string[]>();
-const propertyKeyCache = new WeakMap<Redis.Commander, string[]>();
+const labelCache = new WeakMap<Redis.RedisCommander, string[]>();
+const typeCache = new WeakMap<Redis.RedisCommander, string[]>();
+const propertyKeyCache = new WeakMap<Redis.RedisCommander, string[]>();
 
 
 enum ColumnType {
@@ -42,21 +42,21 @@ export type RedisGraphResponse = [QueryStatistics] | [HeaderRow, ResultRow, Quer
 
 export class GraphResponse {
     
-    constructor(private graph: Graph, private options?: CypherQueryOptions) {
+    constructor(private graph: Graph, private node: Redis.Redis | Redis.Cluster, private options?: CypherQueryOptions) {
       
     }
 
     private async sendCommand(command: string) {
-        const response = await this.graph.node.sendCommand(GraphCommand.create(this.graph.node, command, {}, this.options));
-        return this.parse(response);
+        const response = await this.node.sendCommand(GraphCommand.create(this.graph, command, {}, this.options)!);
+        return this.parse(response as RedisGraphResponse);
     }
 
     private async getPropertyKeys(id: number) {
-        let propertyKeys = propertyKeyCache.get(this.graph.node);
+        let propertyKeys = propertyKeyCache.get(this.node);
 
         if (!propertyKeys || !propertyKeys[id]) {
             propertyKeys = (await this.sendCommand("call db.propertyKeys()"))?.map(({ propertyKey }: any) => propertyKey)!;
-            propertyKeyCache.set(this.graph.node, propertyKeys!)
+            propertyKeyCache.set(this.node, propertyKeys!)
         }
 
         if (!propertyKeys) {
@@ -67,11 +67,11 @@ export class GraphResponse {
     }
 
     private async getRelationshipTypes(id: number) {
-        let types = typeCache.get(this.graph.node);
+        let types = typeCache.get(this.node);
 
         if (!types || !types[id]) {
             types = (await this.sendCommand("call db.relationshipTypes()"))?.map(({ relationshipType }: any) => relationshipType)!;
-            typeCache.set(this.graph.node, types!)
+            typeCache.set(this.node, types!)
         }
 
         if (!types) {
@@ -82,11 +82,11 @@ export class GraphResponse {
     }
 
     private async getLabels(id: number) {
-        let labels = labelCache.get(this.graph.node);
+        let labels = labelCache.get(this.node);
 
         if (!labels || !labels[id]) {
             labels = (await this.sendCommand("call db.labels()"))?.map(({ label }: any) => label)!;
-            labelCache.set(this.graph.node, labels!)
+            labelCache.set(this.node, labels!)
         }
 
         if (!labels) {
@@ -181,7 +181,7 @@ export class GraphResponse {
         }
     }
 
-    async parse<T>(response: RedisGraphResponse) {
+    async parse<T extends {}>(response: RedisGraphResponse) {
         const data: Array<T> = [];
         if (response.length === 3) {
             const [header, result, stats] = response;

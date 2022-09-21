@@ -1,23 +1,34 @@
-import { getStatistics, RedisGraphCluster } from './';
+import { getStatistics, RedisGraph } from './';
 
-const redis = new  RedisGraphCluster("Test1", [
- {
-     host: "172.17.0.1",
-     port: 6379
- }   
-]);
+const redis = new  RedisGraph("Test1", {
+    
+    sentinels: [{
+        host: "172.17.0.1",
+        port: 55414
+    }],
+    natMap: {
+        '172.22.0.2:6379': {host: "172.17.0.1", port :55407},
+        '172.22.0.3:6379': {host: "172.17.0.1", port :55412},
+        '172.22.0.4:26379': { host: "172.17.0.1", port: 55413},
+        '172.22.0.5:26379': { host: "172.17.0.1", port: 55414},
+        '172.22.0.6:26379': { host: "172.17.0.1", port: 55419},
+    
+    },
+    name: "mymaster",
+});
 
 async function  run() {
-    const response = await redis.query("MATCH  a= (c:card)-[l:LOCALIZATION]->(c) return a",
-   // const response = await redis.query("MATCH (a:wish{id:$wishId})-[r:RESERVED_BY]->(u:user) RETURN a, r, u, point({latitude: 55.785290, longitude: 12.321330}) as geo",
-   //const response = await redis.query("MATCH a = (a:wish{id:$wishId})-[r:RESERVED_BY]->(u:user) RETURN a",
-        {wishId: "qBNImEi8gsbEcYnF27iya"},
-        {readOnly: false}
-    );
-    const stats = getStatistics(response);
-    
-    console.log(response)
+    const r = await redis.get("FOO");
+    console.log(r);
 
+    const b = await redis.get("FOO");
+    console.log(b);
+    
+    const response = await redis.query("MATCH (a) return a", {}, {
+        readOnly: true
+    });
+
+    console.log(response);
 }
  
 run();

@@ -12,8 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "ioredis": "^4.27.11",
-    "@types/ioredis": "^4.27.6"
+    "ioredis": "^5.2.3"
   },
   "devDependencies": {
     "ts-node": "^10.4.0",

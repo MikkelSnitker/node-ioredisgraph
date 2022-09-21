@@ -1,10 +1,11 @@
-import Redis, { ValueType } from 'ioredis';
+import * as Redis from 'ioredis';
 import { Node } from './Node';
 import { Edge } from './Edge'
 import { Path } from './Path';
 import { Graph } from './Graph'
 import {GraphResponse, RedisGraphResponse} from './GraphResponse';
-
+import { ArgumentType } from 'ioredis/built/Command';
+/*
 
 declare module "ioredis" {
 
@@ -17,7 +18,7 @@ declare module "ioredis" {
     
     }
 }
-
+*/
 
 
 function serialize(obj: unknown): string | null {
@@ -45,13 +46,13 @@ function argumentTransformer(args: any[]) {
     return [graphName, `CYPHER ${paramStr} ${cypher}`, '--compact']
 }
 
-
 export class GraphCommand extends Redis.Command {
 
-    private constructor(name: string,args: ValueType[]) {
+    
+    private constructor(public readonly graph: Graph, name: string, args: ArgumentType[]) {
         super(name, args, { replyEncoding: "utf8"})
     }
-    static create(node: Redis.Commander, cypherQuery: string, params?: Record<string, unknown>, options?: CypherQueryOptions) {
+    static create(graph: Graph, cypherQuery: string, params?: Record<string, unknown>, options?: CypherQueryOptions) {
     
         const { readOnly = false, graphName } = options ?? {};
         if (!graphName) {
@@ -60,16 +61,14 @@ export class GraphCommand extends Redis.Command {
 
         
         const args = argumentTransformer([graphName, cypherQuery, params]);
-        const command = new GraphCommand(readOnly ? 'GRAPH.RO_QUERY' : 'GRAPH.QUERY', args)
+        const command = new GraphCommand(graph, readOnly ? 'GRAPH.RO_QUERY' : 'GRAPH.QUERY', args)
 
         if (isRedisCommand(command)) {
             if (readOnly) {
                 command.isReadOnly = true;
             }
-
             return command;
         }
-        return null;
     }
 }
 
