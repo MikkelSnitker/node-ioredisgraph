@@ -21,6 +21,7 @@ type Endpoint = { host: string, port: number};
 
 export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     
+    
     private translate(node: Record<string, string> | {host: string, port: number | string}): Endpoint 
     private translate(host: string | Buffer, port: number | string | Buffer): Endpoint
     private translate(...args: unknown[]): Endpoint
@@ -53,13 +54,16 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
         return (this.options && this.options.natMap && this.options.natMap[`${host}:${port}`]) ??  {host, port};
     }
 
+    public nodes = new Map<string, Node>();
+
     constructor(private graphName: string, options: Redis.RedisOptions) {
         super({ ...options });
+        this.translate = this.translate.bind(this);
+        const {nodes} = this;
         if (options.sentinels) {
-            this.translate({host: "1235", port: 1234})
            
-            const nodes = new Map<string, Node>()
             const sentinels = new Map<string, Redis.Redis>();
+
             function getMaster(): Redis.Redis{
                 return Array.from(nodes.values()).find(x=>x.flags === "master")!;
             }
@@ -79,6 +83,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
                 const sentinel = new Redis.default({
                     port, host,
                     sentinels: undefined,
+                    password: options.sentinelPassword,
                 });
                 sentinels.set(`${host}:${port}`, sentinel);
                 sentinel.once("ready", async () => {
@@ -97,6 +102,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
                         let master = nodes.get(`${host}:${port}`);
                         if (!master) {
                             master = Object.assign(new Redis.default({
+                                ...options,
                                 port, host,
                                 sentinels: undefined,
                             }), { flags: "master" as const});
@@ -116,6 +122,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
                             let slave = nodes.get(`${host}:${port}`);
                             if (!slave) {
                                 slave = Object.assign(new Redis.default({
+                                    ...options,
                                     port, host,
                                     sentinels: undefined,
                                 }), { flags: "slave" as const});
@@ -234,14 +241,13 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
             if (command instanceof GraphCommand) {
                 const { graph, isReadOnly } = command;
                 if (node) {
-                    const response = await super.sendCommand(command, stream);
+                    const response = await node.sendCommand(command, stream);
                     return await new GraphResponse(graph, this, graph.options).parse(response as RedisGraphResponse);
                 }
             } else if (node) {
                 return node.sendCommand(command, stream);
             }
         }
-
         return super.sendCommand(command, stream);
     }
 
