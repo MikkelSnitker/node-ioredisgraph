@@ -28,7 +28,7 @@ var Stats_1 = require("./Stats");
 Object.defineProperty(exports, "getStatistics", { enumerable: true, get: function () { return Stats_1.getStatistics; } });
 class RedisGraph extends Redis.default {
     constructor(graphName, options) {
-        super({ ...options });
+        super({ ...options, role: "master" });
         this.graphName = graphName;
         this.nodes = new Map();
         this.translate = this.translate.bind(this);

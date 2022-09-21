@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const _1 = require("./");
 const cluster = new _1.RedisGraphCluster("Test1", [{ host: "35.228.49.188", port: 6379 }], {
     redisOptions: {
-        password: 'zweYSkkTLo',
+        password: process.env["REDIS_PASSWORD"],
     },
     scaleReads: 'all',
 });

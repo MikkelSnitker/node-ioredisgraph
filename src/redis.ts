@@ -57,7 +57,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     public nodes = new Map<string, Node>();
 
     constructor(private graphName: string, options: Redis.RedisOptions) {
-        super({ ...options });
+        super({ ...options, role: "master" });
         this.translate = this.translate.bind(this);
         const {nodes} = this;
         if (options.sentinels) {
