@@ -212,7 +212,7 @@ class RedisGraph extends Redis.default {
                 const { graph, isReadOnly } = command;
                 if (node) {
                     const response = await node.sendCommand(command, stream);
-                    return await new GraphResponse_1.GraphResponse(graph, this, graph.options).parse(response);
+                    return response;
                 }
             }
             else if (node) {
@@ -225,7 +225,9 @@ class RedisGraph extends Redis.default {
         const _this = this;
         const { graphName = this.graphName, readOnly } = options;
         const graph = new Graph_1.Graph({ readOnly, graphName });
-        return this.sendCommand(graph.query(command, params));
+        const response = await this.sendCommand(graph.query(command, params));
+        const data = await new GraphResponse_1.GraphResponse(graph, this, graph.options);
+        return await data.parse(response);
     }
 }
 exports.RedisGraph = RedisGraph;
