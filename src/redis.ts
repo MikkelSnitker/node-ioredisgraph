@@ -226,6 +226,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
 
             (this as any).setStatus("connect");
         }
+   
     }
 
 
@@ -242,7 +243,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
                 const { graph, isReadOnly } = command;
                 if (node) {
                     const response = await node.sendCommand(command, stream);
-                    return await new GraphResponse(graph, this, graph.options).parse(response as RedisGraphResponse);
+                    return response;
                 }
             } else if (node) {
                 return node.sendCommand(command, stream);
@@ -261,6 +262,12 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
         const { graphName = this.graphName, readOnly } = options;
 
         const graph = new Graph({ readOnly, graphName });
-        return this.sendCommand(graph.query<T>(command, params)) as Promise<T[]>;
+        const response: any = await this.sendCommand(graph.query<T>(command, params)) as Promise<T[]>;
+
+        const data = await new GraphResponse(graph, this, graph.options);
+                    
+        return  await data.parse(response as RedisGraphResponse) as T[];
+
+        
     }
 }
