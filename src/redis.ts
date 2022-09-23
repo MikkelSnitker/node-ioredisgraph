@@ -220,7 +220,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
                 if (!isReadOnly) {
                     return getMaster();
                 } else {
-                    return getSlave();
+                    return getSlave() ?? getMaster();
                 }
             }
 

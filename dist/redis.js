@@ -166,7 +166,7 @@ class RedisGraph extends Redis.default {
                     return getMaster();
                 }
                 else {
-                    return getSlave();
+                    return getSlave() ?? getMaster();
                 }
             };
             this.setStatus("connect");
