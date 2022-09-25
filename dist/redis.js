@@ -66,10 +66,11 @@ class RedisGraph extends Redis.default {
                         const { host, port } = translate(hostBuf, portBuf);
                         let master = nodes.get(`${host}:${port}`);
                         if (!master) {
-                            master = Object.assign(new Redis.default({
+                            master = Object.assign(new RedisGraph(graphName, {
                                 ...options,
                                 port, host,
                                 sentinels: undefined,
+                                enableReadyCheck: true,
                             }), { flags: "master" });
                             nodes.set(`${host}:${port}`, master);
                         }
@@ -82,7 +83,7 @@ class RedisGraph extends Redis.default {
                             const { host, port } = translate(slaveData);
                             let slave = nodes.get(`${host}:${port}`);
                             if (!slave) {
-                                slave = Object.assign(new Redis.default({
+                                slave = Object.assign(new RedisGraph(graphName, {
                                     ...options,
                                     port, host,
                                     sentinels: undefined,
@@ -161,7 +162,7 @@ class RedisGraph extends Redis.default {
                 });
             }
             options.sentinels.forEach(({ port, host }) => initSentinal({ port: port, host: host }));
-            this.getNode = async (isReadOnly) => {
+            this.getNode = (isReadOnly) => {
                 if (!isReadOnly) {
                     return getMaster();
                 }
@@ -169,7 +170,6 @@ class RedisGraph extends Redis.default {
                     return getSlave() ?? getMaster();
                 }
             };
-            this.setStatus("connect");
         }
     }
     translate(...args) {
@@ -201,23 +201,39 @@ class RedisGraph extends Redis.default {
         }
         return (this.options && this.options.natMap && this.options.natMap[`${host}:${port}`]) ?? { host, port };
     }
-    async getNode(isReadOnly, key) {
+    getNode(isReadOnly, key) {
         return this;
+    }
+    async _sendCommand(node, command, stream) {
+        let response;
+        if (node.status !== "ready") {
+            await new Promise((resolve) => node.once("ready", () => resolve(undefined)));
+        }
+        if (command instanceof GraphCommand_1.GraphCommand) {
+            const { graph, isReadOnly, transformReply } = command;
+            command.transformReply = (buf) => {
+                if (buf.toString() !== "QUEUED") {
+                    const response = new GraphResponse_1.GraphResponse(graph, this, graph.options);
+                    return response.parse(transformReply.call(command, buf));
+                }
+                return buf;
+            };
+            return node.sendCommand(command, stream);
+        }
+        return node.sendCommand(command, stream);
     }
     async sendCommand(command, stream) {
         let node;
-        if (this.options.sentinels && this.options.name) {
-            node = await this.getNode(command.isReadOnly ?? false, this.options.name);
-            if (command instanceof GraphCommand_1.GraphCommand) {
-                const { graph, isReadOnly } = command;
-                if (node) {
-                    const response = await node.sendCommand(command, stream);
-                    return response;
+        if (this.options.sentinels) {
+            if (stream && stream.destination) {
+                if (stream.destination.redis === this) {
+                    stream.destination.redis = this.getNode(false, this.options.name);
                 }
+                const { redis } = stream.destination;
+                return this._sendCommand(redis, command, stream);
             }
-            else if (node) {
-                return node.sendCommand(command, stream);
-            }
+            node = await this.getNode(command.isReadOnly ?? false, this.options.name);
+            return this._sendCommand(node, command, stream);
         }
         return super.sendCommand(command, stream);
     }
@@ -225,9 +241,13 @@ class RedisGraph extends Redis.default {
         const _this = this;
         const { graphName = this.graphName, readOnly } = options;
         const graph = new Graph_1.Graph({ readOnly, graphName });
-        const response = await this.sendCommand(graph.query(command, params));
-        const data = await new GraphResponse_1.GraphResponse(graph, this, graph.options);
-        return await data.parse(response);
+        return this.sendCommand(graph.query(command, params));
     }
 }
 exports.RedisGraph = RedisGraph;
+Redis.Pipeline.prototype.query = function (query, params, options = { readOnly: true }) {
+    const { graphName = this.redis.graphName, readOnly } = options;
+    const graph = new Graph_1.Graph({ readOnly, graphName });
+    this.sendCommand(graph.query(query, params));
+    return this;
+};
