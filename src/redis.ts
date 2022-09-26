@@ -111,7 +111,8 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
                                 sentinels: undefined,
                                 enableReadyCheck: true,
                             }), { flags: "master" as const });
-                            nodes.set(`${host}:${port}`, master);
+
+                            master.once("ready", ()=> nodes.set(`${host}:${port}`, master!));
                         }
 
                         return master;
@@ -131,7 +132,10 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
                                     port, host,
                                     sentinels: undefined,
                                 }), { flags: "slave" as const });
-                                nodes.set(`${host}:${port}`, slave);
+
+                                slave.once("ready", ()=> nodes.set(`${host}:${port}`, slave!))
+
+                                
                             }
                         }
                     }
@@ -221,11 +225,19 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
 
             options.sentinels.forEach(({ port, host }) => initSentinal({ port: port!, host: host! }));
 
-            this.getNode = (isReadOnly: boolean) => {
+            this.getNode = async (isReadOnly: boolean) => {
+                let node;
+                while(true){
                 if (!isReadOnly) {
-                    return getMaster();
+                    node = getMaster();
                 } else {
-                    return getSlave() ?? getMaster();
+                    node = getSlave() ?? getMaster();
+                }
+                    if(node){
+                        return node;
+                    }
+
+                    await new Promise((resolve)=>setTimeout(resolve, 100));
                 }
             }
         }
@@ -233,7 +245,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     }
 
 
-     getNode(isReadOnly: boolean, key: string): Redis.Redis {
+    async getNode(isReadOnly: boolean, key: string): Promise<Redis.Redis> {
         return this;
     }
 
@@ -265,7 +277,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
         if (this.options.sentinels) {
             if (stream && stream.destination) {
                 if (stream.destination.redis === this) {
-                    stream.destination.redis = this.getNode(false, this.options.name!);
+                    stream.destination.redis = await this.getNode(false, this.options.name!);
                 }
 
                 const { redis } = stream.destination;

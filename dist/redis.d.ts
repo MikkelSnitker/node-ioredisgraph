@@ -24,7 +24,7 @@ export declare class RedisGraph extends Redis.default implements Redis.RedisComm
     private translate;
     nodes: Map<string, Node>;
     constructor(graphName: string, options: Redis.RedisOptions);
-    getNode(isReadOnly: boolean, key: string): Redis.Redis;
+    getNode(isReadOnly: boolean, key: string): Promise<Redis.Redis>;
     _sendCommand(node: Redis.Redis, command: Redis.Command | GraphCommand, stream?: WriteableStream & {
         isPipeline: boolean;
         destination: {

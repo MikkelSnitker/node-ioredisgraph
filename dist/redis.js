@@ -72,7 +72,7 @@ class RedisGraph extends Redis.default {
                                 sentinels: undefined,
                                 enableReadyCheck: true,
                             }), { flags: "master" });
-                            nodes.set(`${host}:${port}`, master);
+                            master.once("ready", () => nodes.set(`${host}:${port}`, master));
                         }
                         return master;
                     }
@@ -88,7 +88,7 @@ class RedisGraph extends Redis.default {
                                     port, host,
                                     sentinels: undefined,
                                 }), { flags: "slave" });
-                                nodes.set(`${host}:${port}`, slave);
+                                slave.once("ready", () => nodes.set(`${host}:${port}`, slave));
                             }
                         }
                     }
@@ -162,12 +162,19 @@ class RedisGraph extends Redis.default {
                 });
             }
             options.sentinels.forEach(({ port, host }) => initSentinal({ port: port, host: host }));
-            this.getNode = (isReadOnly) => {
-                if (!isReadOnly) {
-                    return getMaster();
-                }
-                else {
-                    return getSlave() ?? getMaster();
+            this.getNode = async (isReadOnly) => {
+                let node;
+                while (true) {
+                    if (!isReadOnly) {
+                        node = getMaster();
+                    }
+                    else {
+                        node = getSlave() ?? getMaster();
+                    }
+                    if (node) {
+                        return node;
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 100));
                 }
             };
         }
@@ -201,7 +208,7 @@ class RedisGraph extends Redis.default {
         }
         return (this.options && this.options.natMap && this.options.natMap[`${host}:${port}`]) ?? { host, port };
     }
-    getNode(isReadOnly, key) {
+    async getNode(isReadOnly, key) {
         return this;
     }
     async _sendCommand(node, command, stream) {
@@ -227,7 +234,7 @@ class RedisGraph extends Redis.default {
         if (this.options.sentinels) {
             if (stream && stream.destination) {
                 if (stream.destination.redis === this) {
-                    stream.destination.redis = this.getNode(false, this.options.name);
+                    stream.destination.redis = await this.getNode(false, this.options.name);
                 }
                 const { redis } = stream.destination;
                 return this._sendCommand(redis, command, stream);
