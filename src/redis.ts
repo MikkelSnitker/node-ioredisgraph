@@ -24,7 +24,29 @@ interface Node extends Redis.Redis {
 }
 type Endpoint = { host: string, port: number };
 
+
 export class RedisGraph extends Redis.default implements Redis.RedisCommander {
+    constructor(private graphName: string,options: Redis.RedisOptions){
+        super({...options, role: 'master'})
+    }
+
+
+    async query<T = unknown>(command: string, params: any, options: {
+        graphName?: string
+        readOnly?: boolean
+    } = {}): Promise<T[]> {
+        const _this: any = this
+
+        const { graphName = this.graphName, readOnly } = options;
+
+        const graph = new Graph({ readOnly, graphName });
+
+        const buf = await this.sendCommand(graph.query<T>(command, params));
+        const response = new GraphResponse(graph, this, graph.options);
+        return response.parse(buf as any as RedisGraphResponse) as any;
+    }
+}   
+export class RedisGraph1 extends Redis.default implements Redis.RedisCommander {
 
 
     private translate(node: Record<string, string> | { host: string, port: number | string }): Endpoint

@@ -21,6 +21,14 @@ interface Node extends Redis.Redis {
 }
 export declare class RedisGraph extends Redis.default implements Redis.RedisCommander {
     private graphName;
+    constructor(graphName: string, options: Redis.RedisOptions);
+    query<T = unknown>(command: string, params: any, options?: {
+        graphName?: string;
+        readOnly?: boolean;
+    }): Promise<T[]>;
+}
+export declare class RedisGraph1 extends Redis.default implements Redis.RedisCommander {
+    private graphName;
     private translate;
     nodes: Map<string, Node>;
     constructor(graphName: string, options: Redis.RedisOptions);

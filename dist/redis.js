@@ -19,7 +19,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RedisGraph = exports.getStatistics = void 0;
+exports.RedisGraph1 = exports.RedisGraph = exports.getStatistics = void 0;
 const Redis = __importStar(require("ioredis"));
 const Graph_1 = require("./Graph");
 const GraphCommand_1 = require("./GraphCommand");
@@ -27,6 +27,21 @@ const GraphResponse_1 = require("./GraphResponse");
 var Stats_1 = require("./Stats");
 Object.defineProperty(exports, "getStatistics", { enumerable: true, get: function () { return Stats_1.getStatistics; } });
 class RedisGraph extends Redis.default {
+    constructor(graphName, options) {
+        super({ ...options, role: 'master' });
+        this.graphName = graphName;
+    }
+    async query(command, params, options = {}) {
+        const _this = this;
+        const { graphName = this.graphName, readOnly } = options;
+        const graph = new Graph_1.Graph({ readOnly, graphName });
+        const buf = await this.sendCommand(graph.query(command, params));
+        const response = new GraphResponse_1.GraphResponse(graph, this, graph.options);
+        return response.parse(buf);
+    }
+}
+exports.RedisGraph = RedisGraph;
+class RedisGraph1 extends Redis.default {
     constructor(graphName, options) {
         super({ ...options, role: "master" });
         this.graphName = graphName;
@@ -251,7 +266,7 @@ class RedisGraph extends Redis.default {
         return this.sendCommand(graph.query(command, params));
     }
 }
-exports.RedisGraph = RedisGraph;
+exports.RedisGraph1 = RedisGraph1;
 Redis.Pipeline.prototype.query = function (query, params, options = { readOnly: true }) {
     const { graphName = this.redis.graphName, readOnly } = options;
     const graph = new Graph_1.Graph({ readOnly, graphName });
