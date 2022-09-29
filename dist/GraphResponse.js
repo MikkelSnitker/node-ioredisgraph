@@ -41,8 +41,8 @@ class GraphResponse {
     }
     async sendCommand(command) {
         const response = await this.node.sendCommand(GraphCommand_1.GraphCommand.create(this.graph, command, {}, this.options));
-        return response;
-        //return this.parse(response as RedisGraphResponse);
+        //  return response as any;
+        return this.parse(response);
     }
     async getPropertyKeys(id) {
         let propertyKeys = propertyKeyCache.get(this.node);
