@@ -58,12 +58,12 @@ class GraphCommand extends Redis.Command {
         this.graph = graph;
     }
     static create(graph, cypherQuery, params, options) {
-        const { readOnly = false, graphName } = options ?? {};
+        const { readOnly = false, graphName, timeout = 10000 } = options ?? {};
         if (!graphName) {
             throw new Error("Graphname missing");
         }
         const args = argumentTransformer([graphName, cypherQuery, params]);
-        const command = new GraphCommand(graph, readOnly ? 'GRAPH.RO_QUERY' : 'GRAPH.QUERY', args);
+        const command = new GraphCommand(graph, readOnly ? 'GRAPH.RO_QUERY' : 'GRAPH.QUERY', [...args, "TIMEOUT", timeout]);
         if (isRedisCommand(command)) {
             if (readOnly) {
                 command.isReadOnly = true;

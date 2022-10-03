@@ -54,14 +54,14 @@ export class GraphCommand extends Redis.Command {
     }
     static create(graph: Graph, cypherQuery: string, params?: Record<string, unknown>, options?: CypherQueryOptions) {
     
-        const { readOnly = false, graphName } = options ?? {};
+        const { readOnly = false, graphName, timeout = 10_000  } = options ?? {};
         if (!graphName) {
             throw new Error("Graphname missing")
         }
 
         
         const args = argumentTransformer([graphName, cypherQuery, params]);
-        const command = new GraphCommand(graph, readOnly ? 'GRAPH.RO_QUERY' : 'GRAPH.QUERY', args)
+        const command = new GraphCommand(graph, readOnly ? 'GRAPH.RO_QUERY' : 'GRAPH.QUERY',  [...args, "TIMEOUT", timeout])
 
         if (isRedisCommand(command)) {
             if (readOnly) {
@@ -74,7 +74,8 @@ export class GraphCommand extends Redis.Command {
 
 export interface CypherQueryOptions {
     graphName?: string
-    readOnly?: boolean
+    readOnly?: boolean,
+    timeout?: number
 }
 
 export interface Command extends Redis.Command {

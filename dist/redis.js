@@ -261,8 +261,8 @@ class RedisGraph1 extends Redis.default {
     }
     async query(command, params, options = {}) {
         const _this = this;
-        const { graphName = this.graphName, readOnly } = options;
-        const graph = new Graph_1.Graph({ readOnly, graphName });
+        const { graphName = this.graphName, readOnly, timeout } = options;
+        const graph = new Graph_1.Graph({ readOnly, graphName, timeout });
         return this.sendCommand(graph.query(command, params));
     }
 }

@@ -317,12 +317,13 @@ export class RedisGraph1 extends Redis.default implements Redis.RedisCommander {
     async query<T = unknown>(command: string, params: any, options: {
         graphName?: string
         readOnly?: boolean
+        timeout?: number
     } = {}): Promise<T[]> {
         const _this: any = this
 
-        const { graphName = this.graphName, readOnly } = options;
+        const { graphName = this.graphName, readOnly, timeout } = options;
 
-        const graph = new Graph({ readOnly, graphName });
+        const graph = new Graph({ readOnly, graphName, timeout });
 
         return this.sendCommand(graph.query<T>(command, params)) as Promise<T[]>;
     }

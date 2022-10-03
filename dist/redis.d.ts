@@ -48,5 +48,6 @@ export declare class RedisGraph1 extends Redis.default implements Redis.RedisCom
     query<T = unknown>(command: string, params: any, options?: {
         graphName?: string;
         readOnly?: boolean;
+        timeout?: number;
     }): Promise<T[]>;
 }

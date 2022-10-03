@@ -8,6 +8,7 @@ export declare class GraphCommand extends Redis.Command {
 export interface CypherQueryOptions {
     graphName?: string;
     readOnly?: boolean;
+    timeout?: number;
 }
 export interface Command extends Redis.Command {
     name: string;
