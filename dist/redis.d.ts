@@ -19,15 +19,16 @@ declare module 'ioredis' {
 interface Node extends Redis.Redis {
     flags: "slave" | "master" | "master-down" | "slave-down";
 }
-export declare class RedisGraph1 extends Redis.default implements Redis.RedisCommander {
+export declare class RedisGraph extends Redis.default implements Redis.RedisCommander {
     private graphName;
-    constructor(graphName: string, options: Redis.RedisOptions);
+    private slave?;
+    constructor(graphName: string, { role, ...options }: Redis.RedisOptions);
     query<T = unknown>(command: string, params: any, options?: {
         graphName?: string;
         readOnly?: boolean;
     }): Promise<T[]>;
 }
-export declare class RedisGraph extends Redis.default implements Redis.RedisCommander {
+export declare class RedisGraph1 extends Redis.default implements Redis.RedisCommander {
     private graphName;
     private translate;
     nodes: Map<string, Node>;

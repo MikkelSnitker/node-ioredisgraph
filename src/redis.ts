@@ -25,11 +25,15 @@ interface Node extends Redis.Redis {
 type Endpoint = { host: string, port: number };
 
 
-export class RedisGraph1 extends Redis.default implements Redis.RedisCommander {
-    constructor(private graphName: string,options: Redis.RedisOptions){
+export class RedisGraph extends Redis.default implements Redis.RedisCommander {
+    private slave?: RedisGraph;
+    constructor(private graphName: string,{role, ...options}: Redis.RedisOptions){
         super({...options, role: 'master'})
+        if(role !== "slave"){
+            this.slave  = new RedisGraph(graphName, Object.assign(options, {role:'slave' as const}))
+        }
+        
     }
-
 
     async query<T = unknown>(command: string, params: any, options: {
         graphName?: string
@@ -37,16 +41,18 @@ export class RedisGraph1 extends Redis.default implements Redis.RedisCommander {
     } = {}): Promise<T[]> {
         const _this: any = this
 
+        
         const { graphName = this.graphName, readOnly } = options;
 
         const graph = new Graph({ readOnly, graphName });
-
-        const buf = await this.sendCommand(graph.query<T>(command, params));
+        
+        let node = readOnly ? this.slave ?? this: this;
+        const buf = await node.sendCommand(graph.query<T>(command, params));
         const response = new GraphResponse(graph, this, graph.options);
         return response.parse(buf as any as RedisGraphResponse) as any;
     }
 }   
-export class RedisGraph extends Redis.default implements Redis.RedisCommander {
+export class RedisGraph1 extends Redis.default implements Redis.RedisCommander {
 
 
     private translate(node: Record<string, string> | { host: string, port: number | string }): Endpoint
