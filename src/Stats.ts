@@ -34,12 +34,17 @@ export function parseStatistics(stats: QueryStatistics): Stats {
                 return parseInt(value);
         }
     }
-
+    try {
     return stats.map(x => x.split(": ")).reduce((result, [prop, val]) => {
         const key = parseKey(prop);
         const value = parseValue(key, val as `${number} milliseconds` | `${number}`);
         return Object.assign(result, { [key]: value });
     }, {} as Stats);
+} catch (err){
+    console.error(err);
+    console.error(stats);
+    throw err;
+}
 }
 
 export const STATS = Symbol("stats");

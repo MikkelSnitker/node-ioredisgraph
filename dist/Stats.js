@@ -20,11 +20,18 @@ function parseStatistics(stats) {
                 return parseInt(value);
         }
     }
-    return stats.map(x => x.split(": ")).reduce((result, [prop, val]) => {
-        const key = parseKey(prop);
-        const value = parseValue(key, val);
-        return Object.assign(result, { [key]: value });
-    }, {});
+    try {
+        return stats.map(x => x.split(": ")).reduce((result, [prop, val]) => {
+            const key = parseKey(prop);
+            const value = parseValue(key, val);
+            return Object.assign(result, { [key]: value });
+        }, {});
+    }
+    catch (err) {
+        console.error(err);
+        console.error(stats);
+        throw err;
+    }
 }
 exports.parseStatistics = parseStatistics;
 exports.STATS = Symbol("stats");
