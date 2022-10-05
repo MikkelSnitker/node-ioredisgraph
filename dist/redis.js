@@ -27,8 +27,8 @@ const GraphResponse_1 = require("./GraphResponse");
 var Stats_1 = require("./Stats");
 Object.defineProperty(exports, "getStatistics", { enumerable: true, get: function () { return Stats_1.getStatistics; } });
 class RedisGraph extends Redis.default {
-    constructor(graphName, { role, ...options }) {
-        super({ ...options, role: 'master' });
+    constructor(graphName, { role = 'master', ...options }) {
+        super({ ...options, role });
         this.graphName = graphName;
         if (role !== "slave") {
             this.slave = new RedisGraph(graphName, Object.assign(options, { role: 'slave' }));

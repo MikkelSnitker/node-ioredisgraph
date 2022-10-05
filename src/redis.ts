@@ -27,8 +27,8 @@ type Endpoint = { host: string, port: number };
 
 export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     private slave?: RedisGraph;
-    constructor(private graphName: string,{role, ...options}: Redis.RedisOptions){
-        super({...options, role: 'master'})
+    constructor(private graphName: string,{role = 'master', ...options}: Redis.RedisOptions){
+        super({...options, role})
         if(role !== "slave"){
             this.slave  = new RedisGraph(graphName, Object.assign(options, {role:'slave' as const}))
         }
