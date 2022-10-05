@@ -25,7 +25,7 @@ interface Node extends Redis.Redis {
 type Endpoint = { host: string, port: number };
 
 
-export class RedisGraph extends Redis.default implements Redis.RedisCommander {
+export class RedisGraph1 extends Redis.default implements Redis.RedisCommander {
     constructor(private graphName: string,options: Redis.RedisOptions){
         super({...options, role: 'master'})
     }
@@ -46,7 +46,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
         return response.parse(buf as any as RedisGraphResponse) as any;
     }
 }   
-export class RedisGraph1 extends Redis.default implements Redis.RedisCommander {
+export class RedisGraph extends Redis.default implements Redis.RedisCommander {
 
 
     private translate(node: Record<string, string> | { host: string, port: number | string }): Endpoint
