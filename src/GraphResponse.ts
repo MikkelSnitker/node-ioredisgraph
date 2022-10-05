@@ -7,9 +7,9 @@ import { parseStatistics, QueryStatistics, STATS } from './Stats'
 import { GraphCommand, CypherQueryOptions} from "./GraphCommand";
 
 
-const labelCache = new WeakMap<Redis.RedisCommander, string[]>();
-const typeCache = new WeakMap<Redis.RedisCommander, string[]>();
-const propertyKeyCache = new WeakMap<Redis.RedisCommander, string[]>();
+const labelCache = new WeakMap<{}, string[]>();
+const typeCache = new WeakMap<{}, string[]>();
+const propertyKeyCache = new WeakMap<{}, string[]>();
 
 
 enum ColumnType {
@@ -19,6 +19,7 @@ enum ColumnType {
     COLUMN_RELATION = 3,  // Unused, retained for client compatibility.
 };
 
+const KEY = {};
 enum ValueType {
     VALUE_UNKNOWN = 0,
     VALUE_NULL = 1,
@@ -47,17 +48,17 @@ export class GraphResponse {
     }
 
     private async sendCommand(command: string) {
-        const response = await this.node.sendCommand(GraphCommand.create(this.graph, command, {}, this.options)!);
+        const response = await this.node.sendCommand(GraphCommand.create(this.graph, command, {}, Object.assign({}, this.options,{timeout: 120_000 }))!);
         return response as any;
       //  return this.parse(response as RedisGraphResponse);
     }
 
     private async getPropertyKeys(id: number) {
-        let propertyKeys = propertyKeyCache.get(this.node);
+        let propertyKeys = propertyKeyCache.get(KEY);
 
         if (!propertyKeys || !propertyKeys[id]) {
             propertyKeys = (await this.sendCommand("call db.propertyKeys()"))?.map(({ propertyKey }: any) => propertyKey)!;
-            propertyKeyCache.set(this.node, propertyKeys!)
+            propertyKeyCache.set(KEY, propertyKeys!)
         }
 
         if (!propertyKeys) {
@@ -68,11 +69,11 @@ export class GraphResponse {
     }
 
     private async getRelationshipTypes(id: number) {
-        let types = typeCache.get(this.node);
+        let types = typeCache.get(KEY);
 
         if (!types || !types[id]) {
             types = (await this.sendCommand("call db.relationshipTypes()"))?.map(({ relationshipType }: any) => relationshipType)!;
-            typeCache.set(this.node, types!)
+            typeCache.set(KEY, types!)
         }
 
         if (!types) {
@@ -83,11 +84,11 @@ export class GraphResponse {
     }
 
     private async getLabels(id: number) {
-        let labels = labelCache.get(this.node);
+        let labels = labelCache.get(KEY);
 
         if (!labels || !labels[id]) {
             labels = (await this.sendCommand("call db.labels()"))?.map(({ label }: any) => label)!;
-            labelCache.set(this.node, labels!)
+            labelCache.set(KEY, labels!)
         }
 
         if (!labels) {

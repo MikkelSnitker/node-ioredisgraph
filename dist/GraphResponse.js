@@ -17,6 +17,7 @@ var ColumnType;
     ColumnType[ColumnType["COLUMN_RELATION"] = 3] = "COLUMN_RELATION";
 })(ColumnType || (ColumnType = {}));
 ;
+const KEY = {};
 var ValueType;
 (function (ValueType) {
     ValueType[ValueType["VALUE_UNKNOWN"] = 0] = "VALUE_UNKNOWN";
@@ -40,15 +41,15 @@ class GraphResponse {
         this.options = options;
     }
     async sendCommand(command) {
-        const response = await this.node.sendCommand(GraphCommand_1.GraphCommand.create(this.graph, command, {}, this.options));
+        const response = await this.node.sendCommand(GraphCommand_1.GraphCommand.create(this.graph, command, {}, Object.assign({}, this.options, { timeout: 120000 })));
         return response;
         //  return this.parse(response as RedisGraphResponse);
     }
     async getPropertyKeys(id) {
-        let propertyKeys = propertyKeyCache.get(this.node);
+        let propertyKeys = propertyKeyCache.get(KEY);
         if (!propertyKeys || !propertyKeys[id]) {
             propertyKeys = (await this.sendCommand("call db.propertyKeys()"))?.map(({ propertyKey }) => propertyKey);
-            propertyKeyCache.set(this.node, propertyKeys);
+            propertyKeyCache.set(KEY, propertyKeys);
         }
         if (!propertyKeys) {
             return null;
@@ -56,10 +57,10 @@ class GraphResponse {
         return propertyKeys[id];
     }
     async getRelationshipTypes(id) {
-        let types = typeCache.get(this.node);
+        let types = typeCache.get(KEY);
         if (!types || !types[id]) {
             types = (await this.sendCommand("call db.relationshipTypes()"))?.map(({ relationshipType }) => relationshipType);
-            typeCache.set(this.node, types);
+            typeCache.set(KEY, types);
         }
         if (!types) {
             return null;
@@ -67,10 +68,10 @@ class GraphResponse {
         return types[id];
     }
     async getLabels(id) {
-        let labels = labelCache.get(this.node);
+        let labels = labelCache.get(KEY);
         if (!labels || !labels[id]) {
             labels = (await this.sendCommand("call db.labels()"))?.map(({ label }) => label);
-            labelCache.set(this.node, labels);
+            labelCache.set(KEY, labels);
         }
         if (!labels) {
             return null;
