@@ -20,12 +20,6 @@ declare module 'ioredis' {
     }
 }
 
-
-interface Node extends Redis.Redis {
-    flags: "slave" | "master" | "master-down" | "slave-down"
-}
-
-
 interface AddressFromResponse {
     port: string;
     ip: string;
@@ -48,6 +42,11 @@ class Connector extends Redis.SentinelConnector {
     }
 
     async getSlave(){
+        if(process.env["IOREDIS_MASTER_ONLY"]){
+            return null;
+        }
+
+
         if(this.slave){
             return this.slave;
         }

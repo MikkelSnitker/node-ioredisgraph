@@ -35,6 +35,9 @@ class Connector extends Redis.SentinelConnector {
         });
     }
     async getSlave() {
+        if (process.env["IOREDIS_MASTER_ONLY"]) {
+            return null;
+        }
         if (this.slave) {
             return this.slave;
         }

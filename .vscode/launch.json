@@ -12,7 +12,8 @@
                 "<node_internals>/**"
             ],
             "env": {
-                "DEBUG": "ioredis:*"
+                "DEBUG": "ioredis:*",
+                "IOREIDS_MASTER_ONLY": "true"
             },
         
             "program": "${workspaceFolder}/src/index.spec.ts",
