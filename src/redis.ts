@@ -39,8 +39,13 @@ class Connector extends Redis.SentinelConnector {
                 return slaves[Math.floor((Math.random()*slaves.length))];
             }
         });
+
+        (this as any).sentinelNatResolve = (node:any)=>{
+            return ({...node, host: '127.0.0.1' });
+        }
     }
 
+   
     async getSlave(){
         if(process.env["IOREDIS_MASTER_ONLY"]){
             return null;
