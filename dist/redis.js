@@ -19,258 +19,74 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RedisGraph1 = exports.RedisGraph = exports.getStatistics = void 0;
+exports.RedisGraph = exports.getStatistics = void 0;
 const Redis = __importStar(require("ioredis"));
 const Graph_1 = require("./Graph");
-const GraphCommand_1 = require("./GraphCommand");
 const GraphResponse_1 = require("./GraphResponse");
 var Stats_1 = require("./Stats");
 Object.defineProperty(exports, "getStatistics", { enumerable: true, get: function () { return Stats_1.getStatistics; } });
+class Connector extends Redis.SentinelConnector {
+    constructor(options) {
+        super({
+            ...options,
+            preferredSlaves(slaves) {
+                return slaves[Math.floor((Math.random() * slaves.length))];
+            }
+        });
+    }
+    async getSlave() {
+        if (this.slave) {
+            return this.slave;
+        }
+        let c = 0;
+        let endpoint;
+        while (c < 2) {
+            const { value, done } = this.sentinelIterator.next();
+            if (done) {
+                this.sentinelIterator.reset(false);
+            }
+            else {
+                endpoint = value;
+                break;
+            }
+            c++;
+        }
+        const client = this.connectToSentinel(endpoint);
+        if (!client)
+            return null;
+        endpoint = await this.resolveSlave(client);
+        if (!endpoint)
+            return null;
+        const { sentinels, sentinelCommandTimeout, sentinelPassword, sentinelMaxConnections, sentinelReconnectStrategy, sentinelRetryStrategy, sentinelTLS, sentinelUsername, updateSentinels, enableTLSForSentinelMode, Connector, ...options } = this.options;
+        const slave = new Redis.default({ ...options, ...endpoint, });
+        const onerror = (err) => {
+            this.slave = undefined;
+            console.error(err);
+        };
+        slave.once("error", onerror);
+        return this.slave = slave;
+    }
+}
 class RedisGraph extends Redis.default {
     constructor(graphName, { role = 'master', ...options }) {
-        super({ ...options, role });
+        super({ ...options, role, Connector });
         this.graphName = graphName;
-        if (role !== "slave") {
-            this.slave = new RedisGraph(graphName, Object.assign(options, { role: 'slave' }));
-        }
+    }
+    async getSlave() {
+        const connector = this.connector;
+        return connector.getSlave();
     }
     async query(command, params, options = {}) {
         const _this = this;
         const { graphName = this.graphName, readOnly } = options;
         const graph = new Graph_1.Graph({ readOnly, graphName });
-        let node = readOnly ? this.slave ?? this : this;
+        let node = readOnly ? await this.getSlave() ?? this : this;
         const buf = await node.sendCommand(graph.query(command, params));
         const response = new GraphResponse_1.GraphResponse(graph, this, graph.options);
         return response.parse(buf);
     }
 }
 exports.RedisGraph = RedisGraph;
-class RedisGraph1 extends Redis.default {
-    constructor(graphName, options) {
-        super({ ...options, role: "master" });
-        this.graphName = graphName;
-        this.nodes = new Map();
-        this.translate = this.translate.bind(this);
-        const { nodes } = this;
-        if (options.sentinels) {
-            const sentinels = new Map();
-            function getMaster() {
-                return Array.from(nodes.values()).find(x => x.flags === "master");
-            }
-            function getSlave(random = true) {
-                const slaves = Array.from(nodes.values()).filter(x => x.flags === "slave");
-                if (random) {
-                    return slaves[Math.floor(Math.random() * slaves.length)];
-                }
-                return slaves[0];
-            }
-            const { translate } = this;
-            function initSentinal({ host, port }) {
-                const sentinel = new Redis.default({
-                    port, host,
-                    sentinels: undefined,
-                    password: options.sentinelPassword,
-                });
-                sentinels.set(`${host}:${port}`, sentinel);
-                sentinel.once("ready", async () => {
-                    function parseResponse(data) {
-                        const res = {};
-                        while (data.length > 1) {
-                            Object.assign(res, { [data.shift()?.toString()]: data.shift()?.toString() });
-                        }
-                        return res;
-                    }
-                    async function fetchMaster() {
-                        const [hostBuf, portBuf] = await sentinel.sendCommand(new Redis.Command("SENTINEL", ['get-master-addr-by-name', options.name]));
-                        const { host, port } = translate(hostBuf, portBuf);
-                        let master = nodes.get(`${host}:${port}`);
-                        if (!master) {
-                            master = Object.assign(new RedisGraph(graphName, {
-                                ...options,
-                                port, host,
-                                sentinels: undefined,
-                                enableReadyCheck: true,
-                            }), { flags: "master" });
-                            master.once("ready", () => nodes.set(`${host}:${port}`, master));
-                        }
-                        return master;
-                    }
-                    async function fetchSlaves() {
-                        const response = await sentinel.sendCommand(new Redis.Command("SENTINEL", ['SLAVES', options.name]));
-                        for (const data of response) {
-                            const slaveData = parseResponse(data);
-                            const { host, port } = translate(slaveData);
-                            let slave = nodes.get(`${host}:${port}`);
-                            if (!slave) {
-                                slave = Object.assign(new RedisGraph(graphName, {
-                                    ...options,
-                                    port, host,
-                                    sentinels: undefined,
-                                }), { flags: "slave" });
-                                slave.once("ready", () => nodes.set(`${host}:${port}`, slave));
-                            }
-                        }
-                    }
-                    async function* getSentinels() {
-                        const response = await sentinel.sendCommand(new Redis.Command("SENTINEL", ['sentinels', options.name]));
-                        for (const data of response) {
-                            const { ip, port } = parseResponse(data);
-                            let sentinelNode = (options.natMap && options.natMap[`${ip}:${port}`]);
-                            if (!sentinelNode) {
-                                sentinelNode = { host: ip, port: parseInt(port) };
-                            }
-                            yield sentinelNode;
-                        }
-                    }
-                    await Promise.all([
-                        fetchMaster(),
-                        fetchSlaves(),
-                    ]);
-                    for await (let { host, port } of getSentinels()) {
-                        if (!sentinels.has(`${host}:${port}`)) {
-                            initSentinal({ host, port });
-                        }
-                    }
-                    function updateRole([host, port], role) {
-                        const node = nodes.get(`${host}:${port}`);
-                        if (node) {
-                            const [, flags] = node.flags.split("-");
-                            node.flags = [role, flags].filter(x => x).join("-");
-                        }
-                    }
-                    function updateStatus([host, port], status) {
-                        const node = nodes.get(`${host}:${port}`);
-                        if (node) {
-                            switch (status) {
-                                case "+odown":
-                                    {
-                                        const [role] = node.flags.split("-");
-                                        node.flags = `${role}-down`;
-                                    }
-                                    break;
-                                case "+odown":
-                                    {
-                                        const [role] = node.flags.split("-");
-                                        node.flags = role;
-                                    }
-                                    break;
-                            }
-                        }
-                    }
-                    const sub = await sentinel.psubscribe("*");
-                    sentinel.on("pmessage", (...args) => {
-                        const [, type, payload] = args.map(x => x.toString());
-                        switch (type) {
-                            case "+switch-master":
-                                {
-                                    const [name, oldIp, oldPort, ip, port] = payload.split(" ");
-                                    updateRole([ip, port], 'master');
-                                    updateRole([oldIp, oldPort], 'slave');
-                                }
-                                break;
-                            case "+odown": {
-                                const [, , ip, port] = payload.split(" ");
-                                updateStatus([ip, port], type);
-                            }
-                            case "-odown": {
-                                const [, , ip, port] = payload.split(" ");
-                                updateStatus([ip, port], type);
-                            }
-                        }
-                    });
-                });
-            }
-            options.sentinels.forEach(({ port, host }) => initSentinal({ port: port, host: host }));
-            this.getNode = async (isReadOnly) => {
-                let node;
-                while (true) {
-                    if (!isReadOnly) {
-                        node = getMaster();
-                    }
-                    else {
-                        node = getSlave() ?? getMaster();
-                    }
-                    if (node) {
-                        return node;
-                    }
-                    await new Promise((resolve) => setTimeout(resolve, 100));
-                }
-            };
-        }
-    }
-    translate(...args) {
-        let host = "127.0.0.1";
-        let [node, port] = args;
-        if (node instanceof Buffer || typeof node === "string") {
-            host = node.toString();
-        }
-        else if (node && typeof node === "object") {
-            if ("ip" in node) {
-                host = node["ip"];
-            }
-            else if ("host" in node) {
-                host = node["host"];
-            }
-            else {
-                throw new Error("Invalid host");
-            }
-            if ("port" in node) {
-                port = parseInt(node["port"].toString());
-            }
-            else {
-                port = 6379;
-            }
-            return { host, port };
-        }
-        if (port instanceof Buffer || typeof port === "string") {
-            port = parseInt(port.toString());
-        }
-        return (this.options && this.options.natMap && this.options.natMap[`${host}:${port}`]) ?? { host, port };
-    }
-    async getNode(isReadOnly, key) {
-        return this;
-    }
-    async _sendCommand(node, command, stream) {
-        let response;
-        if (node.status !== "ready") {
-            await new Promise((resolve) => node.once("ready", () => resolve(undefined)));
-        }
-        if (command instanceof GraphCommand_1.GraphCommand) {
-            const { graph, isReadOnly, transformReply } = command;
-            command.transformReply = (buf) => {
-                if (buf.toString() !== "QUEUED") {
-                    const response = new GraphResponse_1.GraphResponse(graph, this, graph.options);
-                    return response.parse(transformReply.call(command, buf));
-                }
-                return buf;
-            };
-            return node.sendCommand(command, stream);
-        }
-        return node.sendCommand(command, stream);
-    }
-    async sendCommand(command, stream) {
-        let node;
-        if (this.options.sentinels) {
-            if (stream && stream.destination) {
-                if (stream.destination.redis === this) {
-                    stream.destination.redis = await this.getNode(false, this.options.name);
-                }
-                const { redis } = stream.destination;
-                return this._sendCommand(redis, command, stream);
-            }
-            node = await this.getNode(command.isReadOnly ?? false, this.options.name);
-            return this._sendCommand(node, command, stream);
-        }
-        return super.sendCommand(command, stream);
-    }
-    async query(command, params, options = {}) {
-        const _this = this;
-        const { graphName = this.graphName, readOnly, timeout } = options;
-        const graph = new Graph_1.Graph({ readOnly, graphName, timeout });
-        return this.sendCommand(graph.query(command, params));
-    }
-}
-exports.RedisGraph1 = RedisGraph1;
 Redis.Pipeline.prototype.query = function (query, params, options = { readOnly: true }) {
     const { graphName = this.redis.graphName, readOnly } = options;
     const graph = new Graph_1.Graph({ readOnly, graphName });
