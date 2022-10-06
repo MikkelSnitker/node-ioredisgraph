@@ -49,8 +49,7 @@ export class GraphResponse {
 
     private async sendCommand(command: string) {
         const response = await this.node.sendCommand(GraphCommand.create(this.graph, command, {}, Object.assign({}, this.options,{timeout: 120_000 }))!);
-        return response as any;
-      //  return this.parse(response as RedisGraphResponse);
+         return this.parse(response as RedisGraphResponse);
     }
 
     private async getPropertyKeys(id: number) {
