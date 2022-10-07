@@ -40,9 +40,9 @@ class Connector extends Redis.SentinelConnector {
             }
         });
 
-        (this as any).sentinelNatResolve = (node:any)=>{
+    /*   (this as any).sentinelNatResolve = (node:any)=>{
             return ({...node, host: '127.0.0.1' });
-        }
+        }*/
     }
 
    
