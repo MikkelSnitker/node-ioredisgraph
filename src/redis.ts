@@ -39,13 +39,8 @@ class Connector extends Redis.SentinelConnector {
                 return slaves[Math.floor((Math.random()*slaves.length))];
             }
         });
-
-    /*   (this as any).sentinelNatResolve = (node:any)=>{
-            return ({...node, host: '127.0.0.1' });
-        }*/
     }
-
-   
+    
     async getSlave(){
         if(process.env["IOREDIS_MASTER_ONLY"]){
             return null;
@@ -102,13 +97,14 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     }
 
     async query<T = unknown>(command: string, params: any, options: {
-        graphName?: string
-        readOnly?: boolean
+        graphName?: string;
+        readOnly?: boolean;
+        timeout?: number;
     } = {}): Promise<T[]> {
         const _this: any = this;
 
-        const { graphName = this.graphName, readOnly } = options;
-        const graph = new Graph({ readOnly, graphName });
+        const { graphName = this.graphName, readOnly, timeout } = options;
+        const graph = new Graph({ readOnly, graphName, timeout, });
         
         let node:any = readOnly ? await this.getSlave() ?? this: this;
         const buf = await node.sendCommand(graph.query<T>(command, params));
