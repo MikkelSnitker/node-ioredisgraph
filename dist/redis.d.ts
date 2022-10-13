@@ -14,11 +14,13 @@ declare module 'ioredis' {
         }): ChainableCommander;
     }
 }
+export declare function packObject(array: string[]): Record<string, any>;
 export declare class RedisGraph extends Redis.default implements Redis.RedisCommander {
     private graphName;
-    private slave?;
+    private pool;
+    private masterPool;
     constructor(graphName: string, { role, ...options }: Redis.RedisOptions);
-    getSlave(): Promise<any>;
+    getConnection(readOnly: boolean | undefined, cb: (redis: Redis.default) => Promise<any>): Promise<any>;
     query<T = unknown>(command: string, params: any, options?: {
         graphName?: string;
         readOnly?: boolean;

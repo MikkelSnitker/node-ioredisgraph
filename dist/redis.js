@@ -19,28 +19,28 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RedisGraph = exports.getStatistics = void 0;
+exports.RedisGraph = exports.packObject = exports.getStatistics = void 0;
 const Redis = __importStar(require("ioredis"));
 const Graph_1 = require("./Graph");
 const GraphResponse_1 = require("./GraphResponse");
 var Stats_1 = require("./Stats");
 Object.defineProperty(exports, "getStatistics", { enumerable: true, get: function () { return Stats_1.getStatistics; } });
+function packObject(array) {
+    const result = {};
+    const length = array.length;
+    for (let i = 1; i < length; i += 2) {
+        result[array[i - 1]] = array[i];
+    }
+    return result;
+}
+exports.packObject = packObject;
 class Connector extends Redis.SentinelConnector {
     constructor(options) {
         super({
             ...options,
-            preferredSlaves(slaves) {
-                return slaves[Math.floor((Math.random() * slaves.length))];
-            }
         });
     }
-    async getSlave() {
-        if (process.env["IOREDIS_MASTER_ONLY"]) {
-            return null;
-        }
-        if (this.slave) {
-            return this.slave;
-        }
+    async getSlaves() {
         let c = 0;
         let endpoint;
         while (c < 2) {
@@ -55,36 +55,56 @@ class Connector extends Redis.SentinelConnector {
             c++;
         }
         const client = this.connectToSentinel(endpoint);
-        if (!client)
-            return null;
-        endpoint = await this.resolveSlave(client);
-        if (!endpoint)
-            return null;
-        const { sentinels, sentinelCommandTimeout, sentinelPassword, sentinelMaxConnections, sentinelReconnectStrategy, sentinelRetryStrategy, sentinelTLS, sentinelUsername, updateSentinels, enableTLSForSentinelMode, Connector, ...options } = this.options;
-        const slave = new Redis.default({ ...options, ...endpoint, });
-        const onerror = (err) => {
-            this.slave = undefined;
-            console.error(err);
-        };
-        slave.once("error", onerror);
-        return this.slave = slave;
+        const result = await client.sentinel("slaves", this.options.name);
+        const availableSlaves = result.map(packObject)
+            .filter((slave) => slave.flags && !slave.flags.match(/(disconnected|s_down|o_down)/));
+        const slaves = [];
+        for (const { ip: host, port } of availableSlaves) {
+            const { sentinels, sentinelCommandTimeout, sentinelPassword, sentinelMaxConnections, sentinelReconnectStrategy, sentinelRetryStrategy, sentinelTLS, sentinelUsername, updateSentinels, enableTLSForSentinelMode, Connector, ...options } = this.options;
+            const slave = new Redis.default(parseInt(port), host, { ...options });
+            slaves.push(slave);
+        }
+        return slaves;
     }
 }
 class RedisGraph extends Redis.default {
     constructor(graphName, { role = 'master', ...options }) {
-        super({ ...options, role, Connector });
+        super({ ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector });
         this.graphName = graphName;
+        this.pool = [];
+        this.masterPool = [];
+        this.once("connect", async () => {
+            for (let i = 0; i < 4; i++) {
+                const { sentinels, sentinelCommandTimeout, sentinelPassword, sentinelMaxConnections, sentinelReconnectStrategy, sentinelRetryStrategy, sentinelTLS, sentinelUsername, updateSentinels, enableTLSForSentinelMode, Connector, ...options } = this.options;
+                const master = new Redis.default(this.stream.remotePort, this.stream.remoteAddress, { ...options });
+                this.masterPool.push(master);
+            }
+            if (!process.env["IOREDIS_MASTER_ONLY"]) {
+                const slaves = await this.connector.getSlaves();
+                this.pool.push(...slaves);
+            }
+        });
     }
-    async getSlave() {
-        const connector = this.connector;
-        return connector.getSlave();
+    async getConnection(readOnly = true, cb) {
+        if (!readOnly || process.env["IOREDIS_MASTER_ONLY"]) {
+            const node = this.masterPool.shift();
+            if (node) {
+                this.masterPool.push(node);
+            }
+            return cb(node ?? this);
+        }
+        const node = this.pool.shift();
+        if (!node) {
+            return cb(this);
+        }
+        this.pool.push(node);
+        return cb(node);
     }
     async query(command, params, options = {}) {
         const _this = this;
         const { graphName = this.graphName, readOnly, timeout } = options;
         const graph = new Graph_1.Graph({ readOnly, graphName, timeout, });
-        let node = readOnly ? await this.getSlave() ?? this : this;
-        const buf = await node.sendCommand(graph.query(command, params));
+        const buf = await this.getConnection(readOnly, (node) => node.sendCommand(graph.query(command, params)));
         const response = new GraphResponse_1.GraphResponse(graph, this, graph.options);
         return response.parse(buf);
     }
