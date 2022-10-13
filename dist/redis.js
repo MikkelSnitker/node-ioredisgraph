@@ -69,96 +69,74 @@ class Connector extends Redis.SentinelConnector {
     }
 }
 class RedisGraph extends Redis.default {
-    constructor() {
-        super(...arguments);
+    constructor(graphName, { role = 'master', ...options }) {
+        super({ ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector });
+        this.graphName = graphName;
         this.pool = [];
         this.masterPool = [];
-        this.stats = new WeakMap < Redis.Redis;
+        this.stats = new WeakMap();
+        this.once("connect", async () => {
+            for (let i = 0; i < 4; i++) {
+                const { sentinels, sentinelCommandTimeout, sentinelPassword, sentinelMaxConnections, sentinelReconnectStrategy, sentinelRetryStrategy, sentinelTLS, sentinelUsername, updateSentinels, enableTLSForSentinelMode, Connector, ...options } = this.options;
+                const master = new Redis.default(this.stream.remotePort, this.stream.remoteAddress, { ...options });
+                this.masterPool.push(master);
+            }
+            if (!process.env["IOREDIS_MASTER_ONLY"]) {
+                const slaves = await this.connector.getSlaves();
+                this.pool.push(...slaves);
+                for (const node of slaves) {
+                    this.stats.set(node, { ops: 0, startTime: Date.now(), duration: 0 });
+                }
+            }
+        });
+        setInterval(() => {
+            console.log("STATS:");
+            for (let node of this.pool) {
+                if (this.stats.has(node)) {
+                    const stats = this.stats.get(node);
+                    const now = Date.now();
+                    const { ops, startTime, duration } = stats;
+                    console.log("%s: ops/s %d, ops total: %d, duration: %d ms", node.stream.remoteAddress, ops / ((now - startTime) / 1000), ops, duration);
+                    this.stats.set(node, { ops: 0, startTime: Date.now(), duration: 0 });
+                }
+            }
+        }, 10000);
+    }
+    async getConnection(readOnly = false, cb) {
+        if (!readOnly || process.env["IOREDIS_MASTER_ONLY"]) {
+            const node = this.masterPool.shift();
+            if (node) {
+                this.masterPool.push(node);
+            }
+            return cb(node ?? this);
+        }
+        const node = this.pool.shift();
+        if (!node) {
+            return cb(this);
+        }
+        this.pool.push(node);
+        return cb(node);
+    }
+    async query(command, params, options = {}) {
+        const _this = this;
+        const { graphName = this.graphName, readOnly, timeout } = options;
+        const graph = new Graph_1.Graph({ readOnly, graphName, timeout, });
+        const [node, buf] = await this.getConnection(readOnly, (node) => [node, node.sendCommand(graph.query(command, params))]);
+        const response = new GraphResponse_1.GraphResponse(graph, this, graph.options);
+        const data = response.parse(buf);
+        data.then((x) => {
+            const redisStats = (0, Stats_1.getStatistics)(x);
+            if (redisStats && this.stats.has(node)) {
+                const stats = this.stats.get(node);
+                const { QueryInternalExecutionTime } = redisStats;
+                stats.duration += QueryInternalExecutionTime ?? 0;
+                stats.ops++;
+            }
+        });
+        return data;
     }
 }
 exports.RedisGraph = RedisGraph;
-{
-    ops: number;
-    startTime: number;
-    duration: number;
-}
- >
-    constructor(private, graphName, string, { role = 'master', ...options }, Redis.RedisOptions);
-{
-    super({ ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector });
-    this.once("connect", async () => {
-        for (let i = 0; i < 4; i++) {
-            const { sentinels, sentinelCommandTimeout, sentinelPassword, sentinelMaxConnections, sentinelReconnectStrategy, sentinelRetryStrategy, sentinelTLS, sentinelUsername, updateSentinels, enableTLSForSentinelMode, Connector, ...options } = this.options;
-            const master = new Redis.default(this.stream.remotePort, this.stream.remoteAddress, { ...options });
-            this.masterPool.push(master);
-        }
-        if (!process.env["IOREDIS_MASTER_ONLY"]) {
-            const slaves = await this.connector.getSlaves();
-            this.pool.push(...slaves);
-            for (const node of slaves) {
-                this.stats.set(node, { ops: 0, startTime: Date.now(), duration: 0 });
-            }
-        }
-    });
-    setInterval(() => {
-        console.log("STATS:");
-        for (let node of this.pool) {
-            if (this.stats.has(node)) {
-                const stats = this.stats.get(node);
-                const now = Date.now();
-                const { ops, startTime, duration } = stats;
-                console.log("%s: ops/s %d, ops total: %d, duration: %d ms", node.stream.remoteAddress, ops / ((now - startTime) / 1000), ops, duration);
-                this.stats.set(node, { ops: 0, startTime: Date.now(), duration: 0 });
-            }
-        }
-    }, 10000);
-}
-async;
-getConnection(readOnly, boolean = false, cb, (redis) => Promise(), {
-    if(, readOnly) { }
-} || process.env["IOREDIS_MASTER_ONLY"]);
-{
-    const node = this.masterPool.shift();
-    if (node) {
-        this.masterPool.push(node);
-    }
-    return cb(node ?? this);
-}
-const node = this.pool.shift();
-if (!node) {
-    return cb(this);
-}
-this.pool.push(node);
-return cb(node);
-async;
-query < T;
-unknown > (command);
-string, params;
-any, options;
-{
-    graphName ?  : string;
-    readOnly ?  : boolean;
-    timeout ?  : number;
-}
-{ }
-Promise < T[] > {
-    const: _this, any = this,
-    const: { graphName = this.graphName, readOnly, timeout } = options,
-    const: graph = new Graph_1.Graph({ readOnly, graphName, timeout, }),
-    const: [node, buf] = await this.getConnection(readOnly, (node) => [node, node.sendCommand(graph.query(command, params))]),
-    const: response = new GraphResponse_1.GraphResponse(graph, this, graph.options),
-    const: data = response.parse(buf),
-    data, : .then((x) => {
-        const redisStats = (0, Stats_1.getStatistics)(x);
-        if (redisStats && this.stats.has(node)) {
-            const stats = this.stats.get(node);
-            const { QueryInternalExecutionTime } = redisStats;
-            stats.duration += QueryInternalExecutionTime ?? 0;
-            stats.ops++;
-        }
-    }),
-    return: data
-};
 Redis.Pipeline.prototype.query = function (query, params, options = { readOnly: true }) {
     const { graphName = this.redis.graphName, readOnly } = options;
     const graph = new Graph_1.Graph({ readOnly, graphName });

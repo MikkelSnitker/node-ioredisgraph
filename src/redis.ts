@@ -103,7 +103,7 @@ class Connector extends Redis.SentinelConnector {
 export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     private pool: Array<Redis.Redis> = []
     private masterPool: Array<Redis.Redis> = [];
-    private stats = new WeakMap<Redis.Redis, {ops: number; startTime:number; duration: number}>
+    private stats = new WeakMap<Redis.Redis, {ops: number; startTime:number; duration: number}>();
 
     constructor(private graphName: string, { role = 'master', ...options }: Redis.RedisOptions) {
         super({ ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector });
@@ -191,7 +191,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
                 stats.ops++;
 
             }
-        })
+        });
 
         return data;
 
