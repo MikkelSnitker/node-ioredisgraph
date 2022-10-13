@@ -85,7 +85,7 @@ class RedisGraph extends Redis.default {
             }
         });
     }
-    async getConnection(readOnly = true, cb) {
+    async getConnection(readOnly = false, cb) {
         if (!readOnly || process.env["IOREDIS_MASTER_ONLY"]) {
             const node = this.masterPool.shift();
             if (node) {
