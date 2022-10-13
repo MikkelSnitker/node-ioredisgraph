@@ -16,14 +16,7 @@ declare module 'ioredis' {
 }
 export declare function packObject(array: string[]): Record<string, any>;
 export declare class RedisGraph extends Redis.default implements Redis.RedisCommander {
-    private graphName;
     private pool;
     private masterPool;
-    constructor(graphName: string, { role, ...options }: Redis.RedisOptions);
-    getConnection(readOnly: boolean | undefined, cb: (redis: Redis.default) => Promise<any>): Promise<any>;
-    query<T = unknown>(command: string, params: any, options?: {
-        graphName?: string;
-        readOnly?: boolean;
-        timeout?: number;
-    }): Promise<T[]>;
+    private stats;
 }

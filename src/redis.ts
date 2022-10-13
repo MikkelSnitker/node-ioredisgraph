@@ -7,6 +7,7 @@ import { ConnectionOptions } from 'tls';
 import { Graph } from './Graph';
 import { GraphCommand } from './GraphCommand';
 import { GraphResponse, RedisGraphResponse } from './GraphResponse';
+import { getStatistics } from './Stats';
 export { getStatistics } from './Stats'
 
 interface Sentinel {
@@ -102,6 +103,7 @@ class Connector extends Redis.SentinelConnector {
 export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     private pool: Array<Redis.Redis> = []
     private masterPool: Array<Redis.Redis> = [];
+    private stats = new WeakMap<Redis.Redis, {ops: number; startTime:number; duration: number}>
 
     constructor(private graphName: string, { role = 'master', ...options }: Redis.RedisOptions) {
         super({ ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector });
@@ -118,9 +120,28 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
                 if (!process.env["IOREDIS_MASTER_ONLY"]) {
                 const slaves = await ((this as any).connector as Connector).getSlaves();
                 this.pool.push(...slaves);
+                for(const node of slaves){
+                    this.stats.set(node, {ops: 0, startTime: Date.now(), duration:0});
+                }
             }
             });
         
+            setInterval(()=>{
+                console.log("STATS:");
+                for(let node of this.pool){
+                    if(this.stats.has(node)) {
+                    const stats = this.stats.get(node)!;
+                    const now = Date.now();
+                    const {ops, startTime, duration} = stats;
+
+                    console.log("%s: ops/s %d, ops total: %d, duration: %d ms",node.stream.remoteAddress, (ops/(now-startTime)/1000), ops, duration)
+
+                    this.stats.set(node, {ops: 0, startTime: Date.now(), duration:0});
+
+                    }
+                }
+
+            }, 10_000);
 
         
     }
@@ -157,9 +178,22 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
         const { graphName = this.graphName, readOnly, timeout } = options;
         const graph = new Graph({ readOnly, graphName, timeout, });
 
-        const buf = await this.getConnection(readOnly, (node) => node.sendCommand(graph.query<T>(command, params)) as any)
+        const [node, buf] = await this.getConnection(readOnly, (node) =>[node, node.sendCommand(graph.query<T>(command, params))] as any)
         const response = new GraphResponse(graph, this, graph.options);
-        return response.parse(buf as any as RedisGraphResponse) as any;
+        
+        const data = response.parse(buf as any as RedisGraphResponse) as any;
+        data.then((x:T[])=>{
+            const redisStats =  getStatistics(x);
+            if (redisStats && this.stats.has(node)){
+                const stats = this.stats.get(node)!;
+                const { QueryInternalExecutionTime } = redisStats;
+                stats.duration += QueryInternalExecutionTime ?? 0;
+                stats.ops++;
+
+            }
+        })
+
+        return data;
 
     }
 }
