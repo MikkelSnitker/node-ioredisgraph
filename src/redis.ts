@@ -86,9 +86,9 @@ class Connector extends Redis.SentinelConnector {
 
         const slaves = [];
 
-        for (const availableSlave of availableSlaves) {
+        for (const {ip:host,port} of availableSlaves) {
             const { sentinels, sentinelCommandTimeout, sentinelPassword, sentinelMaxConnections, sentinelReconnectStrategy, sentinelRetryStrategy, sentinelTLS, sentinelUsername, updateSentinels, enableTLSForSentinelMode, Connector, ...options } = (this.options as Redis.RedisOptions & Redis.SentinelConnectionOptions)
-            const slave = new Redis.default({ ...options, ...endpoint, })
+            const slave = new Redis.default(parseInt(port), host, { ...options })
             slaves.push(slave);
         }
 
@@ -101,22 +101,42 @@ class Connector extends Redis.SentinelConnector {
 
 export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     private pool: Array<Redis.Redis> = []
+    private masterPool: Array<Redis.Redis> = [];
 
     constructor(private graphName: string, { role = 'master', ...options }: Redis.RedisOptions) {
         super({ ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector });
-        if (!process.env["IOREDIS_MASTER_ONLY"]) {
+        
             this.once("connect", async () => {
+
+                for(let i = 0; i < 4; i++ ){
+                    const { sentinels, sentinelCommandTimeout, sentinelPassword, sentinelMaxConnections, sentinelReconnectStrategy, sentinelRetryStrategy, sentinelTLS, sentinelUsername, updateSentinels, enableTLSForSentinelMode, Connector, ...options } = (this.options as Redis.RedisOptions & Redis.SentinelConnectionOptions)
+                    
+                    const master = new Redis.default(this.stream.remotePort!, this.stream.remoteAddress!, { ...options })
+                    this.masterPool.push(master);
+                }
+
+                if (!process.env["IOREDIS_MASTER_ONLY"]) {
                 const slaves = await ((this as any).connector as Connector).getSlaves();
                 this.pool.push(...slaves);
+            }
             });
-        }
+        
+
+        
     }
 
 
     async getConnection(readOnly: boolean = true, cb: (redis: Redis.default) => Promise<any>) {
-        if (readOnly || process.env["IOREDIS_MASTER_ONLY"]) {
-            return cb(this);
+        
+        if (!readOnly || process.env["IOREDIS_MASTER_ONLY"]) {
+            const node = this.masterPool.shift();
+            if(node){
+                this.masterPool.push(node);
+            }
+            
+            return cb(node ?? this);
         }
+
         const node = this.pool.shift();
 
         if (!node) {
