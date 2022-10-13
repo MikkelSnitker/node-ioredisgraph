@@ -21,7 +21,7 @@ export declare class RedisGraph extends Redis.default implements Redis.RedisComm
     private masterPool;
     private stats;
     constructor(graphName: string, { role, ...options }: Redis.RedisOptions);
-    getConnection(readOnly: boolean | undefined, cb: (redis: Redis.default) => Promise<any>): Promise<any>;
+    getConnection<T>(readOnly: boolean | undefined, cb: (redis: Redis.default) => T): Promise<T>;
     query<T = unknown>(command: string, params: any, options?: {
         graphName?: string;
         readOnly?: boolean;

@@ -147,7 +147,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     }
 
 
-    async getConnection(readOnly: boolean = false, cb: (redis: Redis.default) => Promise<any>) {
+    async getConnection<T>(readOnly: boolean = false, cb: (redis: Redis.default) => T): Promise<T> {
         
         if (!readOnly || process.env["IOREDIS_MASTER_ONLY"]) {
             const node = this.masterPool.shift();
@@ -178,7 +178,10 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
         const { graphName = this.graphName, readOnly, timeout } = options;
         const graph = new Graph({ readOnly, graphName, timeout, });
 
-        const [node, buf] = await this.getConnection(readOnly, (node) =>[node, node.sendCommand(graph.query<T>(command, params))] as any)
+        
+        
+
+        const [node, buf] = await Promise.all(await this.getConnection(readOnly, (node) =>[node, node.sendCommand(graph.query<T>(command, params))] as [Redis.Redis, Buffer[]]))
         const response = new GraphResponse(graph, this, graph.options);
         
         const data = response.parse(buf as any as RedisGraphResponse) as any;

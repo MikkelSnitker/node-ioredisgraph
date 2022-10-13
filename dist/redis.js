@@ -121,7 +121,7 @@ class RedisGraph extends Redis.default {
         const _this = this;
         const { graphName = this.graphName, readOnly, timeout } = options;
         const graph = new Graph_1.Graph({ readOnly, graphName, timeout, });
-        const [node, buf] = await this.getConnection(readOnly, (node) => [node, node.sendCommand(graph.query(command, params))]);
+        const [node, buf] = await Promise.all(await this.getConnection(readOnly, (node) => [node, node.sendCommand(graph.query(command, params))]));
         const response = new GraphResponse_1.GraphResponse(graph, this, graph.options);
         const data = response.parse(buf);
         data.then((x) => {
