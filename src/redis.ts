@@ -126,7 +126,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     }
 
 
-    async getConnection(readOnly: boolean = true, cb: (redis: Redis.default) => Promise<any>) {
+    async getConnection(readOnly: boolean = false, cb: (redis: Redis.default) => Promise<any>) {
         
         if (!readOnly || process.env["IOREDIS_MASTER_ONLY"]) {
             const node = this.masterPool.shift();
