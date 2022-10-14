@@ -21,6 +21,8 @@ declare module "ioredis" {
 */
 
 
+const TIMEOUT = parseInt(process.env["IOREDIS_TIMEOUT"] ?? "1000");
+
 function serialize(obj: unknown): string | null {
     if (obj === null || obj === undefined) {
         return null
@@ -54,7 +56,7 @@ export class GraphCommand extends Redis.Command {
     }
     static create(graph: Graph, cypherQuery: string, params?: Record<string, unknown>, options?: CypherQueryOptions) {
     
-        const { readOnly = false, graphName, timeout = 10_000  } = options ?? {};
+        const { readOnly = false, graphName, timeout = TIMEOUT  } = options ?? {};
         if (!graphName) {
             throw new Error("Graphname missing")
         }
