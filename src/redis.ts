@@ -53,6 +53,12 @@ export function packObject(array: string[]): Record<string, any> {
 }
 
 
+function shuffleArray<T>(arr:Array<T>): Array<T> {
+    return arr.map(value => ({ value, sort: Math.random() }))
+    .sort((a, b) => a.sort - b.sort)
+    .map(({ value }) => value)
+}
+
 
 class Connector extends Redis.SentinelConnector {
     constructor(options: unknown) {
@@ -118,12 +124,14 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
                     const slaves = await ((this as any).connector as Connector).getSlaves();
                     pool.push(...slaves);
                     for(const node of slaves){
-                        await new Promise(resolve=>node.once("connect", resolve));
+                        if( ["ready", "connect"].indexOf(node.status) == -1) {
+                            await new Promise(resolve=>node.once("connect", resolve));
+                        }
                         const {remoteAddress, remotePort} = node.stream;
                         this.stats.set(`${remoteAddress}:${remotePort}`, {ops: 0, startTime: Date.now(), duration:0});
                     }
 
-                    resolve(pool);
+                    resolve(shuffleArray(pool));
                 }
                 });
             
@@ -132,20 +140,13 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
             
             setInterval(async ()=>{
                 console.log("STATS:");
-                for (let node of await this.pool){
-                    const {remoteAddress, remotePort} = node.stream;
-
-                    if(this.stats.has(`${remoteAddress}:${remotePort}`)) {
-                    const stats = this.stats.get(`${remoteAddress}:${remotePort}`)!;
+                for (let [key, stats] of await this.stats){
+                  
                     const now = Date.now();
                     const {ops, startTime, duration} = stats;
 
-                    console.log("%s: ops/s %d, ops total: %d, duration: %d ms",node.stream.remoteAddress, ops/((now-startTime)/1000), ops, duration)
-
-
-                    this.stats.set(`${remoteAddress}:${remotePort}`, {ops: 0, startTime: Date.now(), duration:0});
-
-                    }
+                    console.log("%s: ops/s %d, ops total: %d, duration: %d ms",key, ops/((now-startTime)/1000), ops, duration)
+                    this.stats.set(key, {ops: 0, startTime: Date.now(), duration:0});
                 }
                 console.log("QUEUE LENGTH %d POOL SIZE %d", this.queue.length, (await this.pool).length);
 

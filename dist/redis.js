@@ -35,6 +35,11 @@ function packObject(array) {
     return result;
 }
 exports.packObject = packObject;
+function shuffleArray(arr) {
+    return arr.map(value => ({ value, sort: Math.random() }))
+        .sort((a, b) => a.sort - b.sort)
+        .map(({ value }) => value);
+}
 class Connector extends Redis.SentinelConnector {
     constructor(options) {
         super({
@@ -84,25 +89,23 @@ class RedisGraph extends Redis.default {
                     const slaves = await this.connector.getSlaves();
                     pool.push(...slaves);
                     for (const node of slaves) {
-                        await new Promise(resolve => node.once("connect", resolve));
+                        if (["ready", "connect"].indexOf(node.status) == -1) {
+                            await new Promise(resolve => node.once("connect", resolve));
+                        }
                         const { remoteAddress, remotePort } = node.stream;
                         this.stats.set(`${remoteAddress}:${remotePort}`, { ops: 0, startTime: Date.now(), duration: 0 });
                     }
-                    resolve(pool);
+                    resolve(shuffleArray(pool));
                 }
             });
         });
         setInterval(async () => {
             console.log("STATS:");
-            for (let node of await this.pool) {
-                const { remoteAddress, remotePort } = node.stream;
-                if (this.stats.has(`${remoteAddress}:${remotePort}`)) {
-                    const stats = this.stats.get(`${remoteAddress}:${remotePort}`);
-                    const now = Date.now();
-                    const { ops, startTime, duration } = stats;
-                    console.log("%s: ops/s %d, ops total: %d, duration: %d ms", node.stream.remoteAddress, ops / ((now - startTime) / 1000), ops, duration);
-                    this.stats.set(`${remoteAddress}:${remotePort}`, { ops: 0, startTime: Date.now(), duration: 0 });
-                }
+            for (let [key, stats] of await this.stats) {
+                const now = Date.now();
+                const { ops, startTime, duration } = stats;
+                console.log("%s: ops/s %d, ops total: %d, duration: %d ms", key, ops / ((now - startTime) / 1000), ops, duration);
+                this.stats.set(key, { ops: 0, startTime: Date.now(), duration: 0 });
             }
             console.log("QUEUE LENGTH %d POOL SIZE %d", this.queue.length, (await this.pool).length);
         }, 10000);
