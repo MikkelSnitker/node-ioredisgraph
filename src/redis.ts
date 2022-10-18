@@ -118,6 +118,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
                     const slaves = await ((this as any).connector as Connector).getSlaves();
                     pool.push(...slaves);
                     for(const node of slaves){
+                        await new Promise(resolve=>node.once("connect", resolve));
                         const {remoteAddress, remotePort} = node.stream;
                         this.stats.set(`${remoteAddress}:${remotePort}`, {ops: 0, startTime: Date.now(), duration:0});
                     }
@@ -205,12 +206,15 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
         const data = response.parse(buf as any as RedisGraphResponse) as any;
         data.then((x:T[])=>{
             const redisStats =  getStatistics(x);
-            if (redisStats && this.stats.has(node)){
-                const stats = this.stats.get(node)!;
+            if(node && node.stream) {
+            const {remoteAddress, remotePort} = node.stream;
+            if (redisStats && this.stats.has(`${remoteAddress}:${remotePort}`)){
+                const stats = this.stats.get(`${remoteAddress}:${remotePort}`)!;
                 const { QueryInternalExecutionTime } = redisStats;
                 stats.duration += QueryInternalExecutionTime ?? 0;
                 stats.ops++;
 
+            }
             }
         });
 
