@@ -74,26 +74,31 @@ class RedisGraph extends Redis.default {
     constructor(graphName, { role = 'master', ...options }) {
         super({ ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector });
         this.graphName = graphName;
-        this.pool = [];
         // private masterPool: Array<Redis.Redis> = [];
         this.stats = new WeakMap();
-        this.once("connect", async () => {
-            if (!process.env["IOREDIS_MASTER_ONLY"]) {
-                const slaves = await this.connector.getSlaves();
-                this.pool.push(...slaves);
-                for (const node of slaves) {
-                    this.stats.set(node, { ops: 0, startTime: Date.now(), duration: 0 });
+        this.queue = [];
+        this.pool = new Promise((resolve) => {
+            const pool = [];
+            this.once("connect", async () => {
+                if (!process.env["IOREDIS_MASTER_ONLY"]) {
+                    const slaves = await this.connector.getSlaves();
+                    pool.push(...slaves);
+                    for (const node of slaves) {
+                        this.stats.set(node, { ops: 0, startTime: Date.now(), duration: 0 });
+                    }
+                    resolve(pool);
                 }
-            }
+            });
         });
-        setInterval(() => {
+        setInterval(async () => {
             console.log("STATS:");
-            for (let node of this.pool) {
+            for (let node of await this.pool) {
                 if (this.stats.has(node)) {
                     const stats = this.stats.get(node);
                     const now = Date.now();
                     const { ops, startTime, duration } = stats;
                     console.log("%s: ops/s %d, ops total: %d, duration: %d ms", node.stream.remoteAddress, ops / ((now - startTime) / 1000), ops, duration);
+                    console.log("QUEUE LENGTH %d", (await this.pool).length);
                     this.stats.set(node, { ops: 0, startTime: Date.now(), duration: 0 });
                 }
             }
@@ -103,12 +108,29 @@ class RedisGraph extends Redis.default {
         if (!readOnly || process.env["IOREDIS_MASTER_ONLY"]) {
             return cb(this);
         }
-        const node = this.pool.shift();
+        const pool = await this.pool;
+        let node = pool.shift();
+        while (!node) {
+            node = await new Promise((resolve) => this.queue.push(resolve));
+        }
         if (!node) {
             return cb(this);
         }
-        this.pool.push(node);
-        return cb(node);
+        try {
+            return await cb(node);
+        }
+        catch (err) {
+            throw err;
+        }
+        finally {
+            const resolve = this.queue.shift();
+            if (resolve) {
+                resolve(node);
+            }
+            else {
+                pool.push(node);
+            }
+        }
     }
     async query(command, params, options = {}) {
         const _this = this;

@@ -103,32 +103,41 @@ class Connector extends Redis.SentinelConnector {
 }
 
 export class RedisGraph extends Redis.default implements Redis.RedisCommander {
-    private pool: Array<Redis.Redis> = []
+    private pool: Promise<Array<Redis.Redis>>;
    // private masterPool: Array<Redis.Redis> = [];
+   
     private stats = new WeakMap<Redis.Redis, {ops: number; startTime:number; duration: number}>();
 
     constructor(private graphName: string, { role = 'master', ...options }: Redis.RedisOptions) {
         super({ ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector });
-        
-            this.once("connect", async () => {
-                if (!process.env["IOREDIS_MASTER_ONLY"]) {
-                const slaves = await ((this as any).connector as Connector).getSlaves();
-                this.pool.push(...slaves);
-                for(const node of slaves){
-                    this.stats.set(node, {ops: 0, startTime: Date.now(), duration:0});
+
+            this.pool = new Promise((resolve)=>{
+                const pool: Array<Redis.Redis> = [];
+                this.once("connect", async () => {
+                    if (!process.env["IOREDIS_MASTER_ONLY"]) {
+                    const slaves = await ((this as any).connector as Connector).getSlaves();
+                    pool.push(...slaves);
+                    for(const node of slaves){
+                        this.stats.set(node, {ops: 0, startTime: Date.now(), duration:0});
+                    }
+
+                    resolve(pool);
                 }
-            }
+                });
+            
+
             });
-        
-            setInterval(()=>{
+            
+            setInterval(async ()=>{
                 console.log("STATS:");
-                for(let node of this.pool){
+                for (let node of await this.pool){
                     if(this.stats.has(node)) {
                     const stats = this.stats.get(node)!;
                     const now = Date.now();
                     const {ops, startTime, duration} = stats;
 
                     console.log("%s: ops/s %d, ops total: %d, duration: %d ms",node.stream.remoteAddress, ops/((now-startTime)/1000), ops, duration)
+                    console.log("QUEUE LENGTH %d", (await this.pool).length);
 
                     this.stats.set(node, {ops: 0, startTime: Date.now(), duration:0});
 
@@ -140,6 +149,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
         
     }
 
+    queue: Function[] = [];
 
     async getConnection<T>(readOnly: boolean = false, cb: (redis: Redis.default) => T): Promise<T> {
         
@@ -147,14 +157,29 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
             return cb(this);
         }
 
-        const node = this.pool.shift();
+        const pool = await this.pool;
+
+        let node = pool.shift();
+        while(!node) {
+            node = await new Promise<Redis.Redis>((resolve)=>this.queue.push(resolve));
+        }
+        
 
         if (!node) {
             return cb(this);
         }
-        this.pool.push(node);
-        return cb(node);
-
+        try {
+            return await cb(node);
+        } catch(err) {
+            throw err;
+        } finally {
+            const resolve = this.queue.shift();
+            if(resolve) {
+                resolve(node);
+            } else {
+                pool.push(node);
+            }
+        }
     }
 
     async query<T = unknown>(command: string, params: any, options: {
