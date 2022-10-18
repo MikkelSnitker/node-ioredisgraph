@@ -75,7 +75,7 @@ class RedisGraph extends Redis.default {
         super({ ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector });
         this.graphName = graphName;
         // private masterPool: Array<Redis.Redis> = [];
-        this.stats = new WeakMap();
+        this.stats = new Map();
         this.queue = [];
         this.pool = new Promise((resolve) => {
             const pool = [];
@@ -84,7 +84,8 @@ class RedisGraph extends Redis.default {
                     const slaves = await this.connector.getSlaves();
                     pool.push(...slaves);
                     for (const node of slaves) {
-                        this.stats.set(node, { ops: 0, startTime: Date.now(), duration: 0 });
+                        const { remoteAddress, remotePort } = node.stream;
+                        this.stats.set(`${remoteAddress}:${remotePort}`, { ops: 0, startTime: Date.now(), duration: 0 });
                     }
                     resolve(pool);
                 }
@@ -93,15 +94,16 @@ class RedisGraph extends Redis.default {
         setInterval(async () => {
             console.log("STATS:");
             for (let node of await this.pool) {
-                if (this.stats.has(node)) {
-                    const stats = this.stats.get(node);
+                const { remoteAddress, remotePort } = node.stream;
+                if (this.stats.has(`${remoteAddress}:${remotePort}`)) {
+                    const stats = this.stats.get(`${remoteAddress}:${remotePort}`);
                     const now = Date.now();
                     const { ops, startTime, duration } = stats;
                     console.log("%s: ops/s %d, ops total: %d, duration: %d ms", node.stream.remoteAddress, ops / ((now - startTime) / 1000), ops, duration);
-                    console.log("QUEUE LENGTH %d POOL SIZE %d", this.queue.length, (await this.pool).length);
-                    this.stats.set(node, { ops: 0, startTime: Date.now(), duration: 0 });
+                    this.stats.set(`${remoteAddress}:${remotePort}`, { ops: 0, startTime: Date.now(), duration: 0 });
                 }
             }
+            console.log("QUEUE LENGTH %d POOL SIZE %d", this.queue.length, (await this.pool).length);
         }, 10000);
     }
     async getConnection(readOnly = false, cb) {

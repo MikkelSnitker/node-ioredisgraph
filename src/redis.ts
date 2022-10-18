@@ -106,7 +106,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     private pool: Promise<Array<Redis.Redis>>;
    // private masterPool: Array<Redis.Redis> = [];
    
-    private stats = new WeakMap<Redis.Redis, {ops: number; startTime:number; duration: number}>();
+    private stats = new Map<string, {ops: number; startTime:number; duration: number}>();
 
     constructor(private graphName: string, { role = 'master', ...options }: Redis.RedisOptions) {
         super({ ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector });
@@ -118,7 +118,8 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
                     const slaves = await ((this as any).connector as Connector).getSlaves();
                     pool.push(...slaves);
                     for(const node of slaves){
-                        this.stats.set(node, {ops: 0, startTime: Date.now(), duration:0});
+                        const {remoteAddress, remotePort} = node.stream;
+                        this.stats.set(`${remoteAddress}:${remotePort}`, {ops: 0, startTime: Date.now(), duration:0});
                     }
 
                     resolve(pool);
@@ -131,18 +132,21 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
             setInterval(async ()=>{
                 console.log("STATS:");
                 for (let node of await this.pool){
-                    if(this.stats.has(node)) {
-                    const stats = this.stats.get(node)!;
+                    const {remoteAddress, remotePort} = node.stream;
+
+                    if(this.stats.has(`${remoteAddress}:${remotePort}`)) {
+                    const stats = this.stats.get(`${remoteAddress}:${remotePort}`)!;
                     const now = Date.now();
                     const {ops, startTime, duration} = stats;
 
                     console.log("%s: ops/s %d, ops total: %d, duration: %d ms",node.stream.remoteAddress, ops/((now-startTime)/1000), ops, duration)
-                    console.log("QUEUE LENGTH %d POOL SIZE %d", this.queue.length, (await this.pool).length);
 
-                    this.stats.set(node, {ops: 0, startTime: Date.now(), duration:0});
+
+                    this.stats.set(`${remoteAddress}:${remotePort}`, {ops: 0, startTime: Date.now(), duration:0});
 
                     }
                 }
+                console.log("QUEUE LENGTH %d POOL SIZE %d", this.queue.length, (await this.pool).length);
 
             }, 10_000);
 
