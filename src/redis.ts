@@ -88,9 +88,11 @@ class Connector extends Redis.SentinelConnector {
         const slaves = [];
 
         for (const {ip:host,port} of availableSlaves) {
-            const { sentinels, sentinelCommandTimeout, sentinelPassword, sentinelMaxConnections, sentinelReconnectStrategy, sentinelRetryStrategy, sentinelTLS, sentinelUsername, updateSentinels, enableTLSForSentinelMode, Connector, ...options } = (this.options as Redis.RedisOptions & Redis.SentinelConnectionOptions)
+            for(let i = 0; i < 5; i++) {
+                const { sentinels, sentinelCommandTimeout, sentinelPassword, sentinelMaxConnections, sentinelReconnectStrategy, sentinelRetryStrategy, sentinelTLS, sentinelUsername, updateSentinels, enableTLSForSentinelMode, Connector, ...options } = (this.options as Redis.RedisOptions & Redis.SentinelConnectionOptions)
             const slave = new Redis.default(parseInt(port), host, { ...options })
             slaves.push(slave);
+            }
         }
 
         return slaves;
@@ -102,21 +104,13 @@ class Connector extends Redis.SentinelConnector {
 
 export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     private pool: Array<Redis.Redis> = []
-    private masterPool: Array<Redis.Redis> = [];
+   // private masterPool: Array<Redis.Redis> = [];
     private stats = new WeakMap<Redis.Redis, {ops: number; startTime:number; duration: number}>();
 
     constructor(private graphName: string, { role = 'master', ...options }: Redis.RedisOptions) {
         super({ ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector });
         
             this.once("connect", async () => {
-
-                for(let i = 0; i < 4; i++ ){
-                    const { sentinels, sentinelCommandTimeout, sentinelPassword, sentinelMaxConnections, sentinelReconnectStrategy, sentinelRetryStrategy, sentinelTLS, sentinelUsername, updateSentinels, enableTLSForSentinelMode, Connector, ...options } = (this.options as Redis.RedisOptions & Redis.SentinelConnectionOptions)
-                    
-                    const master = new Redis.default(this.stream.remotePort!, this.stream.remoteAddress!, { ...options })
-                    this.masterPool.push(master);
-                }
-
                 if (!process.env["IOREDIS_MASTER_ONLY"]) {
                 const slaves = await ((this as any).connector as Connector).getSlaves();
                 this.pool.push(...slaves);
@@ -150,12 +144,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     async getConnection<T>(readOnly: boolean = false, cb: (redis: Redis.default) => T): Promise<T> {
         
         if (!readOnly || process.env["IOREDIS_MASTER_ONLY"]) {
-            const node = this.masterPool.shift();
-            if(node){
-                this.masterPool.push(node);
-            }
-            
-            return cb(node ?? this);
+            return cb(this);
         }
 
         const node = this.pool.shift();
