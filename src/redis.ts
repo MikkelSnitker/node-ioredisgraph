@@ -137,7 +137,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
                     const {ops, startTime, duration} = stats;
 
                     console.log("%s: ops/s %d, ops total: %d, duration: %d ms",node.stream.remoteAddress, ops/((now-startTime)/1000), ops, duration)
-                    console.log("QUEUE LENGTH %d", (await this.pool).length);
+                    console.log("QUEUE LENGTH %d POOL SIZE %d", this.queue.length, (await this.pool).length);
 
                     this.stats.set(node, {ops: 0, startTime: Date.now(), duration:0});
 
