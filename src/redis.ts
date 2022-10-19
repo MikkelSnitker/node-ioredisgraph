@@ -174,18 +174,14 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
         if (!node) {
             return cb(this);
         }
-        try {
-            return await cb(node);
-        } catch(err) {
-            throw err;
-        } finally {
+        return Promise.resolve(cb(node)).finally(()=>{
             const resolve = this.queue.shift();
             if(resolve) {
                 resolve(node);
-            } else {
+            } else if(node) {
                 pool.push(node);
             }
-        }
+        });
     }
 
     async query<T = unknown>(command: string, params: any, options: {

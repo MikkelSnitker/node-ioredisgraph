@@ -122,21 +122,15 @@ class RedisGraph extends Redis.default {
         if (!node) {
             return cb(this);
         }
-        try {
-            return await cb(node);
-        }
-        catch (err) {
-            throw err;
-        }
-        finally {
+        return Promise.resolve(cb(node)).finally(() => {
             const resolve = this.queue.shift();
             if (resolve) {
                 resolve(node);
             }
-            else {
+            else if (node) {
                 pool.push(node);
             }
-        }
+        });
     }
     async query(command, params, options = {}) {
         const _this = this;
