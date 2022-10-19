@@ -191,32 +191,35 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     } = {}): Promise<T[]> {
         const _this: any = this;
 
-        const { graphName = this.graphName, readOnly, timeout } = options;
-        const graph = new Graph({ readOnly, graphName, timeout, });
-
+        return new Promise((resolve,reject)=>{
+            setImmediate(async ()=>{
+                const { graphName = this.graphName, readOnly, timeout } = options;
+                const graph = new Graph({ readOnly, graphName, timeout, });
         
+                
+                
         
-
-        const [node, buf] = await Promise.all(await this.getConnection(readOnly, (node) =>[node, node.sendCommand(graph.query<T>(command, params))] as [Redis.Redis, Buffer[]]))
-        const response = new GraphResponse(graph, this, graph.options);
+                const [node, buf] = await Promise.all(await this.getConnection(readOnly, (node) =>[node, node.sendCommand(graph.query<T>(command, params))] as [Redis.Redis, Buffer[]]))
+                const response = new GraphResponse(graph, this, graph.options);
+                
+                const data = response.parse(buf as any as RedisGraphResponse) as Promise<any>;
+                data.then((x:T[])=>{
+                    const redisStats =  getStatistics(x);
+                    if(node && node.stream) {
+                    const {remoteAddress, remotePort} = node.stream;
+                    if (redisStats && this.stats.has(`${remoteAddress}:${remotePort}`)){
+                        const stats = this.stats.get(`${remoteAddress}:${remotePort}`)!;
+                        const { QueryInternalExecutionTime } = redisStats;
+                        stats.duration += QueryInternalExecutionTime ?? 0;
+                        stats.ops++;
         
-        const data = response.parse(buf as any as RedisGraphResponse) as any;
-        data.then((x:T[])=>{
-            const redisStats =  getStatistics(x);
-            if(node && node.stream) {
-            const {remoteAddress, remotePort} = node.stream;
-            if (redisStats && this.stats.has(`${remoteAddress}:${remotePort}`)){
-                const stats = this.stats.get(`${remoteAddress}:${remotePort}`)!;
-                const { QueryInternalExecutionTime } = redisStats;
-                stats.duration += QueryInternalExecutionTime ?? 0;
-                stats.ops++;
+                    }
+                    }
+                });
 
-            }
-            }
-        });
-
-        return data;
-
+                data.then(resolve, reject);
+            })
+        })
     }
 }
 

@@ -134,24 +134,28 @@ class RedisGraph extends Redis.default {
     }
     async query(command, params, options = {}) {
         const _this = this;
-        const { graphName = this.graphName, readOnly, timeout } = options;
-        const graph = new Graph_1.Graph({ readOnly, graphName, timeout, });
-        const [node, buf] = await Promise.all(await this.getConnection(readOnly, (node) => [node, node.sendCommand(graph.query(command, params))]));
-        const response = new GraphResponse_1.GraphResponse(graph, this, graph.options);
-        const data = response.parse(buf);
-        data.then((x) => {
-            const redisStats = (0, Stats_1.getStatistics)(x);
-            if (node && node.stream) {
-                const { remoteAddress, remotePort } = node.stream;
-                if (redisStats && this.stats.has(`${remoteAddress}:${remotePort}`)) {
-                    const stats = this.stats.get(`${remoteAddress}:${remotePort}`);
-                    const { QueryInternalExecutionTime } = redisStats;
-                    stats.duration += QueryInternalExecutionTime ?? 0;
-                    stats.ops++;
-                }
-            }
+        return new Promise((resolve, reject) => {
+            setImmediate(async () => {
+                const { graphName = this.graphName, readOnly, timeout } = options;
+                const graph = new Graph_1.Graph({ readOnly, graphName, timeout, });
+                const [node, buf] = await Promise.all(await this.getConnection(readOnly, (node) => [node, node.sendCommand(graph.query(command, params))]));
+                const response = new GraphResponse_1.GraphResponse(graph, this, graph.options);
+                const data = response.parse(buf);
+                data.then((x) => {
+                    const redisStats = (0, Stats_1.getStatistics)(x);
+                    if (node && node.stream) {
+                        const { remoteAddress, remotePort } = node.stream;
+                        if (redisStats && this.stats.has(`${remoteAddress}:${remotePort}`)) {
+                            const stats = this.stats.get(`${remoteAddress}:${remotePort}`);
+                            const { QueryInternalExecutionTime } = redisStats;
+                            stats.duration += QueryInternalExecutionTime ?? 0;
+                            stats.ops++;
+                        }
+                    }
+                });
+                data.then(resolve, reject);
+            });
         });
-        return data;
     }
 }
 exports.RedisGraph = RedisGraph;
