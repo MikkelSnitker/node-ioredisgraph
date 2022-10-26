@@ -107,19 +107,27 @@ class Connector extends Redis.SentinelConnector {
 
 }
 
+function opt( { role = 'master', ...options }: Redis.RedisOptions): Redis.RedisOptions {
+    if("sentinels" in options){
+        return {...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector}
+    }
+
+    return options;
+}
+
 export class RedisGraph extends Redis.default implements Redis.RedisCommander {
     private pool: Promise<Array<Redis.Redis>>;
    // private masterPool: Array<Redis.Redis> = [];
    
     private stats = new Map<string, {ops: number; startTime:number; duration: number}>();
 
-    constructor(private graphName: string, { role = 'master', ...options }: Redis.RedisOptions) {
-        super({ ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector });
+    constructor(private graphName: string, options: Redis.RedisOptions) {
+        super(opt(options));
 
             this.pool = new Promise((resolve)=>{
                 const pool: Array<Redis.Redis> = [];
                 this.once("connect", async () => {
-                    if (!process.env["IOREDIS_MASTER_ONLY"]) {
+                    if ("sentinels" in options &&  !process.env["IOREDIS_MASTER_ONLY"]) {
                     const slaves = await ((this as any).connector as Connector).getSlaves();
                     pool.push(...slaves);
                     for(const node of slaves){
@@ -158,7 +166,7 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
 
     async getConnection<T>(readOnly: boolean = false, cb: (redis: Redis.default) => T): Promise<T> {
         
-        if (!readOnly || process.env["IOREDIS_MASTER_ONLY"]) {
+        if (!(this.options.sentinels) || !readOnly || process.env["IOREDIS_MASTER_ONLY"]) {
             return cb(this);
         }
 

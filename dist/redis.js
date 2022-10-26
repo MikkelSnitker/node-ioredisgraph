@@ -77,9 +77,15 @@ class Connector extends Redis.SentinelConnector {
         return slaves;
     }
 }
+function opt({ role = 'master', ...options }) {
+    if ("sentinels" in options) {
+        return { ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector };
+    }
+    return options;
+}
 class RedisGraph extends Redis.default {
-    constructor(graphName, { role = 'master', ...options }) {
-        super({ ...options, failoverDetector: !process.env["IOREDIS_MASTER_ONLY"], role, Connector });
+    constructor(graphName, options) {
+        super(opt(options));
         this.graphName = graphName;
         // private masterPool: Array<Redis.Redis> = [];
         this.stats = new Map();
@@ -87,7 +93,7 @@ class RedisGraph extends Redis.default {
         this.pool = new Promise((resolve) => {
             const pool = [];
             this.once("connect", async () => {
-                if (!process.env["IOREDIS_MASTER_ONLY"]) {
+                if ("sentinels" in options && !process.env["IOREDIS_MASTER_ONLY"]) {
                     const slaves = await this.connector.getSlaves();
                     pool.push(...slaves);
                     for (const node of slaves) {
@@ -113,7 +119,7 @@ class RedisGraph extends Redis.default {
         }, 10000);
     }
     async getConnection(readOnly = false, cb) {
-        if (!readOnly || process.env["IOREDIS_MASTER_ONLY"]) {
+        if (!(this.options.sentinels) || !readOnly || process.env["IOREDIS_MASTER_ONLY"]) {
             return cb(this);
         }
         const pool = await this.pool;
