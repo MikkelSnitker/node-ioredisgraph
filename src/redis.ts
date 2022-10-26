@@ -94,11 +94,10 @@ class Connector extends Redis.SentinelConnector {
         const slaves = [];
 
         for (const {ip:host,port} of availableSlaves) {
-            for(let i = 0; i < 5; i++) {
-                const { sentinels, sentinelCommandTimeout, sentinelPassword, sentinelMaxConnections, sentinelReconnectStrategy, sentinelRetryStrategy, sentinelTLS, sentinelUsername, updateSentinels, enableTLSForSentinelMode, Connector, ...options } = (this.options as Redis.RedisOptions & Redis.SentinelConnectionOptions)
+            const { sentinels, sentinelCommandTimeout, sentinelPassword, sentinelMaxConnections, sentinelReconnectStrategy, sentinelRetryStrategy, sentinelTLS, sentinelUsername, updateSentinels, enableTLSForSentinelMode, Connector, ...options } = (this.options as Redis.RedisOptions & Redis.SentinelConnectionOptions)
             const slave = new Redis.default(parseInt(port), host, { ...options })
             slaves.push(slave);
-            }
+    
         }
 
         return slaves;
