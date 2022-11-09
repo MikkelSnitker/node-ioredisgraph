@@ -1,11 +1,5 @@
-
-import { stat } from 'fs';
 import * as Redis from 'ioredis'
-import { WriteableStream } from 'ioredis/built/types';
-import { off } from 'process';
-import { ConnectionOptions } from 'tls';
 import { Graph } from './Graph';
-import { GraphCommand } from './GraphCommand';
 import { GraphResponse, RedisGraphResponse } from './GraphResponse';
 import { getStatistics } from './Stats';
 export { getStatistics } from './Stats'
@@ -199,17 +193,24 @@ export class RedisGraph extends Redis.default implements Redis.RedisCommander {
         const _this: any = this;
 
         return new Promise((resolve,reject)=>{
-            setImmediate(async ()=>{
+            setImmediate(async () => {
                 const { graphName = this.graphName, readOnly, timeout } = options;
                 const graph = new Graph({ readOnly, graphName, timeout, });
-        
-                
-                
-        
-                const [node, buf] = await Promise.all(await this.getConnection(readOnly, (node) =>[node, node.sendCommand(graph.query<T>(command, params))] as [Redis.Redis, Buffer[]]))
+
+                let result: [Redis.Redis, Buffer[]];
+
+                try {
+                    result = await Promise.all(await this.getConnection(readOnly, (node) =>[node, node.sendCommand(graph.query<T>(command, params))] as [Redis.Redis, Buffer[]]))
+                } catch (error) {
+                    reject(error);
+                    return;
+                }
+
+                const [node, buf] = result;
                 const response = new GraphResponse(graph, this, graph.options);
                 
                 const data = response.parse(buf as any as RedisGraphResponse) as Promise<any>;
+
                 data.then((x:T[])=>{
                     const redisStats =  getStatistics(x);
                     if(node && node.stream) {
